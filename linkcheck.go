@@ -55,6 +55,15 @@ func main() {
 	os.Exit(run(base.String(), *crawlers))
 }
 
+// fetchResult is a type so that we can send fetch's results on a channel
+type fetchResult struct {
+	url   string
+	links []string
+	ids   map[string]bool
+	err   error
+}
+
+// urlErr is an error plus the URL that was the source of the error
 type urlErr struct {
 	url string
 	err error
@@ -168,13 +177,6 @@ func run(base string, crawlers int) (exitCode int) {
 	}
 
 	return 0
-}
-
-type fetchResult struct {
-	url   string
-	links []string
-	ids   map[string]bool
-	err   error
 }
 
 func fetch(url string, processLinks bool) (links []string, ids map[string]bool, err error) {
