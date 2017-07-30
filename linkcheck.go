@@ -120,9 +120,6 @@ func run(base string, crawlers int) (exitCode int) {
 		case result := <-fetchResults:
 			openFetchs--
 			if result.err != nil {
-				msg := fmt.Sprintf("Error on %s: %v",
-					result.url, result.err)
-				log.Print(msg)
 				errs = append(errs, urlErr{result.url, result.err})
 				break
 			}
@@ -201,6 +198,8 @@ func fetch(url string, processLinks bool) (links []string, ids map[string]bool, 
 
 	if ct := http.DetectContentType(peek); !strings.HasPrefix(ct, "text/html") {
 		log.Printf("Skipping %s, content-type %s", url, ct)
+		// Have to make ID non-nil, so that it shows up in the map of
+		// URLs we've crawled
 		return nil, map[string]bool{}, nil
 	}
 
@@ -210,11 +209,11 @@ func fetch(url string, processLinks bool) (links []string, ids map[string]bool, 
 		return nil, nil, err
 	}
 
-	log.Printf("Len of %s: %d", url, len(slurp))
+	log.Println("Got OK:", url)
 
 	if processLinks {
 		for _, ref := range getLinks(url, slurp) {
-			log.Printf(" links to %s", ref)
+			log.Printf("url %s links to %s", url, ref)
 
 			if !excludeLink(ref) {
 				links = append(links, ref)
@@ -234,7 +233,8 @@ func fetch(url string, processLinks bool) (links []string, ids map[string]bool, 
 func getLinks(url string, body []byte) (links []string) {
 	doc, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
-		log.Printf("ERROR: parsing HTML: %v", err)
+		log.Printf("error parsing HTML: %v", err)
+		// TODO: Should we return an error here?
 		return
 	}
 
