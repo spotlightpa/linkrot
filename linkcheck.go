@@ -64,13 +64,13 @@ func run(base string, crawlers int) (exitCode int) {
 	log.Printf("starting %d crawlers", crawlers)
 
 	var (
-		urlq         = make(chan string)
+		workerqueue  = make(chan string)
 		fetchResults = make(chan fetchResult)
 	)
 
 	for i := 0; i < crawlers; i++ {
 		go func() {
-			for url := range urlq {
+			for url := range workerqueue {
 				processLinks := strings.HasPrefix(url, base)
 				links, ids, err := fetch(url, processLinks)
 				fetchResults <- fetchResult{url, links, ids, err}
@@ -79,13 +79,13 @@ func run(base string, crawlers int) (exitCode int) {
 	}
 
 	var (
-		// URL -> []URLs it links to
-		needs = make(map[string][]string) // URL#frag -> who needs it
-		// URL without fragment -> []ids on page
+		// URL that was fetched -> []URLs it links to
+		needs = make(map[string][]string)
+		// URL without fragment -> set of ids on page
 		crawled = make(map[string]map[string]bool)
 		// List of URLs that need to be crawled
 		queue = []string{base}
-		// Set of URLs that have been queued
+		// Set of URLs that have been queued already
 		queued = map[string]bool{base: true}
 		// How many fetches we're waiting on
 		openFetchs int
@@ -93,16 +93,17 @@ func run(base string, crawlers int) (exitCode int) {
 		errs []urlErr
 	)
 
-	for {
+	for openFetchs > 0 || len(queue) > 0 {
 		var loopqueue chan string
 		addURL := ""
 		if len(queue) > 0 {
-			loopqueue = urlq
+			loopqueue = workerqueue
 			addURL = queue[0]
 		}
 
 		select {
-		// Case is a NOOP when queue is empty
+		// This case is a NOOP when queue is empty
+		// because loopqueue will be nil and nil always blocks
 		case loopqueue <- addURL:
 			openFetchs++
 			queue = queue[1:]
@@ -135,13 +136,10 @@ func run(base string, crawlers int) (exitCode int) {
 				}
 			}
 		}
-
-		// Fetched everything!
-		if openFetchs == 0 && len(queue) == 0 {
-			break
-		}
 	}
 
+	// Fetched everything!
+	// Now check if it fulfilled our needs
 	for srcURL, destURLs := range needs {
 		for _, destURL := range destURLs {
 			u, _ := url.Parse(destURL)
@@ -160,6 +158,7 @@ func run(base string, crawlers int) (exitCode int) {
 		}
 	}
 
+	// TODO: maybe output this as CSV or something?
 	for _, err := range errs {
 		fmt.Printf("%s: %v\n", err.url, err.err)
 	}
