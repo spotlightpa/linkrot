@@ -27,6 +27,8 @@ import (
 	"golang.org/x/net/html"
 )
 
+var excludePaths []string
+
 func main() {
 	flag.Usage = func() {
 		const usage = `Usage of linkcheck:
@@ -44,6 +46,7 @@ Options:
 
 	verbose := flag.Bool("verbose", false, "verbose")
 	crawlers := flag.Int("crawlers", runtime.NumCPU(), "number of concurrent crawlers")
+	excludes := flag.String("exclude", "", "comma separated list of URL prefixes to ignore")
 	flag.Parse()
 	root := flag.Arg(0)
 	if root == "" {
@@ -66,6 +69,11 @@ Options:
 	if !*verbose {
 		log.SetOutput(ioutil.Discard)
 	}
+
+	if *excludes != "" {
+		excludePaths = strings.Split(*excludes, ",")
+	}
+
 	os.Exit(run(base.String(), *crawlers))
 }
 
@@ -303,6 +311,11 @@ var invalidProtos = []string{
 func excludeLink(ref string) bool {
 	for _, proto := range invalidProtos {
 		if strings.HasPrefix(ref, proto) {
+			return true
+		}
+	}
+	for _, prefix := range excludePaths {
+		if strings.HasPrefix(ref, prefix) {
 			return true
 		}
 	}
