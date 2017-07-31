@@ -145,6 +145,8 @@ func run(base string, crawlers int) (exitCode int) {
 	}
 
 	// Fetched everything!
+	close(workerqueue)
+
 	// Now check if it fulfilled our needs
 	for srcURL, destURLs := range needs {
 		for _, destURL := range destURLs {
