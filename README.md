@@ -8,7 +8,7 @@ Usage
 -----
 
 ``` shell
-$ linkcheck -root https://adhocteam.us/
+$ linkcheck https://adhocteam.us/
 ```
 
 Installation
