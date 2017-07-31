@@ -27,8 +27,6 @@ import (
 	"golang.org/x/net/html"
 )
 
-var excludePaths []string
-
 func main() {
 	flag.Usage = func() {
 		const usage = `Usage of linkcheck:
@@ -302,11 +300,15 @@ func href(n *html.Node) string {
 	return ""
 }
 
-var invalidProtos = []string{
-	"mailto:",
-	"javascript:",
-	"tel:",
-}
+// excludeLink globals
+var (
+	invalidProtos = []string{
+		"mailto:",
+		"javascript:",
+		"tel:",
+	}
+	excludePaths []string
+)
 
 func excludeLink(ref string) bool {
 	for _, proto := range invalidProtos {
