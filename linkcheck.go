@@ -28,6 +28,20 @@ import (
 )
 
 func main() {
+	flag.Usage = func() {
+		const usage = `Usage of linkcheck:
+
+linkcheck [options] <url>
+
+    linkcheck takes a root URL and recurses down through the links it finds
+    in the HTML pages, checking for broken links (HTTP status != 200).
+
+Options:
+`
+		fmt.Fprintln(os.Stderr, usage)
+		flag.PrintDefaults()
+	}
+
 	verbose := flag.Bool("verbose", false, "verbose")
 	crawlers := flag.Int("crawlers", runtime.NumCPU(), "number of concurrent crawlers")
 	flag.Parse()
