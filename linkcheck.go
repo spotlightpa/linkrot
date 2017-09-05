@@ -15,6 +15,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -213,7 +214,7 @@ func fetch(url string, processLinks bool) (links []string, ids map[string]bool, 
 	buf := bufio.NewReader(res.Body)
 	// http.DetectContentType only uses first 512 bytes
 	peek, err := buf.Peek(512)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		log.Printf("Error initially reading %s body: %v", url, err)
 		return nil, nil, err
 	}
