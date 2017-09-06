@@ -73,7 +73,7 @@ Options:
 		excludePaths = strings.Split(*excludes, ",")
 	}
 
-	os.Exit(run(base.String(), *crawlers))
+	os.Exit(run(base.String(), *crawlers, os.Stdout))
 }
 
 // fetchResult is a type so that we can send fetch's results on a channel
@@ -90,7 +90,7 @@ type urlErr struct {
 	err error
 }
 
-func run(base string, crawlers int) (exitCode int) {
+func run(base string, crawlers int, output io.Writer) (exitCode int) {
 	log.Printf("starting %d crawlers", crawlers)
 
 	var (
@@ -189,7 +189,7 @@ func run(base string, crawlers int) (exitCode int) {
 
 	// TODO: maybe output this as CSV or something?
 	for _, err := range errs {
-		fmt.Printf("%s: %v\n", err.url, err.err)
+		fmt.Fprintf(output, "%s: %v\n", err.url, err.err)
 	}
 
 	if len(errs) > 0 {
