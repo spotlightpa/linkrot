@@ -21,9 +21,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 
 	"golang.org/x/net/html"
 )
@@ -123,7 +125,11 @@ func run(base string, crawlers int, output io.Writer) (exitCode int) {
 		errs []urlErr
 	)
 
-	for openFetchs > 0 || len(queue) > 0 {
+	// subscribe to SIGINT signals, so that we still output on early exit
+	stopChan := make(chan os.Signal, 1)
+	signal.Notify(stopChan, syscall.SIGINT)
+
+	for (openFetchs > 0 || len(queue) > 0) && exitCode == 0 {
 		var loopqueue chan string
 		addURL := ""
 		if len(queue) > 0 {
@@ -162,6 +168,9 @@ func run(base string, crawlers int, output io.Writer) (exitCode int) {
 					queue = append(queue, link)
 				}
 			}
+
+		case <-stopChan:
+			exitCode = 3
 		}
 	}
 
@@ -192,11 +201,11 @@ func run(base string, crawlers int, output io.Writer) (exitCode int) {
 		fmt.Fprintf(output, "%s: %v\n", err.url, err.err)
 	}
 
-	if len(errs) > 0 {
-		return 1
+	if len(errs) > 0 && exitCode == 0 {
+		exitCode = 1
 	}
 
-	return 0
+	return exitCode
 }
 
 func fetch(url string, processLinks bool) (links []string, ids map[string]bool, err error) {
@@ -307,6 +316,7 @@ var (
 		"mailto:",
 		"javascript:",
 		"tel:",
+		"sms:",
 	}
 	excludePaths []string
 )
