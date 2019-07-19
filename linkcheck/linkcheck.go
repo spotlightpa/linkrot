@@ -33,8 +33,9 @@ import (
 )
 
 var (
-	ErrCancelled = exitcode.Set(errors.New("scraping canceled by SIGINT"), 3)
-	ErrBadLinks  = exitcode.Set(errors.New("found bad links"), 4)
+	ErrCancelled       = exitcode.Set(errors.New("scraping canceled by SIGINT"), 3)
+	ErrBadLinks        = exitcode.Set(errors.New("found bad links"), 4)
+	ErrMissingFragment = errors.New("page missing fragments")
 )
 
 func CLI(args []string) error {
@@ -60,14 +61,15 @@ Options:
 		return err
 	}
 
-	root := flag.Arg(0)
+	root := fl.Arg(0)
 	if root == "" {
 		root = "http://localhost:8000"
 	}
 
 	base, err := url.Parse(root)
 	if err != nil {
-		log.Fatalf("parsing root URL: %v", err)
+		log.Printf("parsing root URL: %v", err)
+		return err
 	}
 
 	if base.Path == "" {
@@ -75,143 +77,35 @@ Options:
 	}
 
 	if *crawlers < 1 {
-		log.Fatalf("need at least one crawler")
+		log.Printf("need at least one crawler")
+		return fmt.Errorf("bad crawler count: %d", *crawlers)
 	}
 
-	if !*verbose {
-		log.SetOutput(ioutil.Discard)
+	logger := log.New(ioutil.Discard, "linkrot ", log.LstdFlags)
+	if *verbose {
+		logger = log.New(os.Stderr, "linkrot ", log.LstdFlags)
 	}
 
 	if *excludes != "" {
 		excludePaths = strings.Split(*excludes, ",")
 	}
 
-	return run(base.String(), *crawlers, os.Stdout)
+	c := &crawler{base.String(), *crawlers, logger}
+	return c.run(os.Stdout)
 }
 
-// fetchResult is a type so that we can send fetch's results on a channel
-type fetchResult struct {
-	url   string
-	links []string
-	ids   map[string]bool
-	err   error
+type crawler struct {
+	base    string
+	workers int
+	*log.Logger
 }
 
-// urlErr is an error plus the URL that was the source of the error
-type urlErr struct {
-	url string
-	err error
-}
-
-func run(base string, crawlers int, output io.Writer) error {
-	log.Printf("starting %d crawlers", crawlers)
-
-	var (
-		workerqueue  = make(chan string)
-		fetchResults = make(chan fetchResult)
-	)
-
-	for i := 0; i < crawlers; i++ {
-		go func() {
-			for url := range workerqueue {
-				processLinks := strings.HasPrefix(url, base)
-				links, ids, err := fetch(url, processLinks)
-				fetchResults <- fetchResult{url, links, ids, err}
-			}
-		}()
-	}
-
-	var (
-		// URL that was fetched -> []URLs it links to
-		needs = make(map[string][]string)
-		// URL without fragment -> set of ids on page
-		crawled = make(map[string]map[string]bool)
-		// List of URLs that need to be crawled
-		queue = []string{base}
-		// Set of URLs that have been queued already
-		queued = map[string]bool{base: true}
-		// How many fetches we're waiting on
-		openFetchs int
-		// Any problems we encounter along the way
-		errs []urlErr
-		// caught SIGINT?
-		cancelled bool
-	)
-
-	// subscribe to SIGINT signals, so that we still output on early exit
-	stopChan := make(chan os.Signal, 1)
-	signal.Notify(stopChan, syscall.SIGINT)
-
-	for (openFetchs > 0 || len(queue) > 0) && !cancelled {
-		var loopqueue chan string
-		addURL := ""
-		if len(queue) > 0 {
-			loopqueue = workerqueue
-			addURL = queue[0]
-		}
-
-		select {
-		// This case is a NOOP when queue is empty
-		// because loopqueue will be nil and nil always blocks
-		case loopqueue <- addURL:
-			openFetchs++
-			queue = queue[1:]
-
-		case result := <-fetchResults:
-			openFetchs--
-			if result.err != nil {
-				errs = append(errs, urlErr{result.url, result.err})
-				break
-			}
-			crawled[result.url] = result.ids
-
-			// Only queue links under root
-			if !strings.HasPrefix(result.url, base) {
-				break
-			}
-
-			needs[result.url] = result.links
-			for _, link := range result.links {
-				// Clear any fragments before queueing
-				u, _ := url.Parse(link)
-				u.Fragment = ""
-				link = u.String()
-				if !queued[link] {
-					queued[link] = true
-					queue = append(queue, link)
-				}
-			}
-
-		case <-stopChan:
-			cancelled = true
-		}
-	}
-
-	// Fetched everything!
-	close(workerqueue)
-
-	// Now check if it fulfilled our needs
-	for srcURL, destURLs := range needs {
-		for _, destURL := range destURLs {
-			u, _ := url.Parse(destURL)
-			frag := u.Fragment
-			u.Fragment = ""
-			link := u.String()
-			if crawled[link] == nil {
-				errs = append(errs, urlErr{
-					srcURL,
-					fmt.Errorf("failed to fetch: %s", destURL)})
-			} else if frag != "" && !crawled[link][frag] {
-				errs = append(errs, urlErr{
-					srcURL,
-					fmt.Errorf("missing fragment: %s", destURL)})
-			}
-		}
-	}
+func (c *crawler) run(w io.Writer) error {
+	errs, cancelled := c.crawl()
 
 	// TODO: maybe output this as CSV or something?
-	for _, err := range errs {
-		fmt.Fprintf(output, "%s: %v\n", err.url, err.err)
+	for url, err := range errs {
+		fmt.Fprintf(w, "%s: %v\n", url, err.err)
 	}
 
 	var err error
@@ -224,7 +118,75 @@ func run(base string, crawlers int, output io.Writer) error {
 	return err
 }
 
-func fetch(url string, processLinks bool) (links []string, ids map[string]bool, err error) {
+func (c *crawler) crawl() (errs urlErrors, cancelled bool) {
+	c.Printf("starting %d crawlers", c.workers)
+
+	var (
+		workerqueue  = make(chan string)
+		fetchResults = make(chan fetchResult)
+	)
+
+	for i := 0; i < c.workers; i++ {
+		go func() {
+			for url := range workerqueue {
+				fetchResults <- c.fetch(url)
+			}
+		}()
+	}
+
+	var (
+		// List of URLs that need to be crawled
+		q = newQueue(c.base)
+		// database of what we've collected
+		crawled = newCrawledPages()
+		// How many fetches we're waiting on
+		openFetchs int
+	)
+
+	// subscribe to SIGINT signals, so that we still output on early exit
+	stopChan := make(chan os.Signal, 1)
+	signal.Notify(stopChan, syscall.SIGINT)
+
+	for (openFetchs > 0 || !q.empty()) && !cancelled {
+		loopqueue := workerqueue
+		addURL := q.head()
+		if q.empty() {
+			loopqueue = nil
+		}
+
+		select {
+		// This case is a NOOP when queue is empty
+		// because loopqueue will be nil and nil always blocks
+		case loopqueue <- addURL:
+			openFetchs++
+			q.pophead()
+
+		case result := <-fetchResults:
+			openFetchs--
+			crawled.add(result)
+			// Only queue links on pages under root
+			if strings.HasPrefix(result.url, c.base) {
+				crawled.addLinksToQueue(result.url, q)
+			}
+
+		case <-stopChan:
+			cancelled = true
+		}
+	}
+
+	// Fetched everything!
+	close(workerqueue)
+
+	return crawled.toURLErrors(c.base), cancelled
+}
+
+func (c *crawler) fetch(url string) fetchResult {
+	processLinks := strings.HasPrefix(url, c.base)
+	links, ids, err := c.processURL(url, processLinks)
+	return fetchResult{url, links, ids, err}
+}
+
+func (c *crawler) processURL(url string, processLinks bool) (links, ids []string, err error) {
 	res, err := http.Get(url)
 	if err != nil {
 		return nil, nil, err
@@ -240,28 +202,26 @@ func fetch(url string, processLinks bool) (links []string, ids map[string]bool, 
 	// http.DetectContentType only uses first 512 bytes
 	peek, err := buf.Peek(512)
 	if err != nil && err != io.EOF {
-		log.Printf("Error initially reading %s body: %v", url, err)
+		c.Printf("Error initially reading %s body: %v", url, err)
 		return nil, nil, err
 	}
 
 	if ct := http.DetectContentType(peek); !strings.HasPrefix(ct, "text/html") {
-		log.Printf("Skipping %s, content-type %s", url, ct)
-		// Have to make ID non-nil, so that it shows up in the map of
-		// URLs we've crawled
-		return nil, map[string]bool{}, nil
+		c.Printf("Skipping %s, content-type %s", url, ct)
+		return nil, nil, nil
 	}
 
 	slurp, err := ioutil.ReadAll(buf)
 	if err != nil {
-		log.Printf("Error reading %s body: %v", url, err)
+		c.Printf("Error reading %s body: %v", url, err)
 		return nil, nil, err
 	}
 
-	log.Println("Got OK:", url)
+	c.Println("Got OK:", url)
 
 	if processLinks {
-		for _, ref := range getLinks(url, slurp) {
-			log.Printf("url %s links to %s", url, ref)
+		for _, ref := range c.getLinks(url, slurp) {
+			c.Printf("url %s links to %s", url, ref)
 
 			if !excludeLink(ref) {
 				links = append(links, ref)
@@ -269,19 +229,14 @@ func fetch(url string, processLinks bool) (links []string, ids map[string]bool, 
 		}
 	}
 
-	ids = make(map[string]bool)
-	for _, id := range pageIDs(slurp) {
-		log.Printf(" url %s has #%s", url, id)
-		ids[id] = true
-	}
-
+	ids = pageIDs(slurp)
 	return links, ids, nil
 }
 
-func getLinks(url string, body []byte) (links []string) {
+func (c *crawler) getLinks(url string, body []byte) (links []string) {
 	doc, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
-		log.Printf("error parsing HTML: %v", err)
+		c.Printf("error parsing HTML: %v", err)
 		// TODO: Should we return an error here?
 		return
 	}
