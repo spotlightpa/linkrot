@@ -1,13 +1,13 @@
-// Modifications 2017 by Ad Hoc. Original copyright/license below.
+// Original copyright/license below.
 //
 // Copyright 2013 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// The linkcheck command finds missing links in the given website.
+// Package linkcheck finds missing links in the given website.
 // It crawls a URL recursively and notes URLs and URL fragments
 // that it's seen and prints a report of missing links at the end.
-package main
+package linkcheck
 
 import (
 	"bufio"
@@ -27,12 +27,20 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/carlmjohnson/exitcode"
+
 	"golang.org/x/net/html"
 )
 
-func main() {
-	flag.Usage = func() {
-		const usage = `Usage of linkcheck:
+var (
+	ErrCancelled = exitcode.Set(errors.New("scraping canceled by SIGINT"), 3)
+	ErrBadLinks  = exitcode.Set(errors.New("found bad links"), 4)
+)
+
+func CLI(args []string) error {
+	fl := flag.NewFlagSet("linkrot", flag.ContinueOnError)
+	fl.Usage = func() {
+		const usage = `Usage of linkrot:
 
 linkcheck [options] <url>
 
@@ -42,13 +50,16 @@ linkcheck [options] <url>
 Options:
 `
 		fmt.Fprintln(os.Stderr, usage)
-		flag.PrintDefaults()
+		fl.PrintDefaults()
 	}
 
-	verbose := flag.Bool("verbose", false, "verbose")
-	crawlers := flag.Int("crawlers", runtime.NumCPU(), "number of concurrent crawlers")
-	excludes := flag.String("exclude", "", "comma separated list of URL prefixes to ignore")
-	flag.Parse()
+	verbose := fl.Bool("verbose", false, "verbose")
+	crawlers := fl.Int("crawlers", runtime.NumCPU(), "number of concurrent crawlers")
+	excludes := fl.String("exclude", "", "comma separated list of URL prefixes to ignore")
+	if err := fl.Parse(args); err != nil {
+		return err
+	}
+
 	root := flag.Arg(0)
 	if root == "" {
 		root = "http://localhost:8000"
@@ -75,7 +86,7 @@ Options:
 		excludePaths = strings.Split(*excludes, ",")
 	}
 
-	os.Exit(run(base.String(), *crawlers, os.Stdout))
+	return run(base.String(), *crawlers, os.Stdout)
 }
 
 // fetchResult is a type so that we can send fetch's results on a channel
@@ -92,7 +103,7 @@ type urlErr struct {
 	err error
 }
 
-func run(base string, crawlers int, output io.Writer) (exitCode int) {
+func run(base string, crawlers int, output io.Writer) error {
 	log.Printf("starting %d crawlers", crawlers)
 
 	var (
@@ -123,13 +134,15 @@ func run(base string, crawlers int, output io.Writer) (exitCode int) {
 		openFetchs int
 		// Any problems we encounter along the way
 		errs []urlErr
+		// caught SIGINT?
+		cancelled bool
 	)
 
 	// subscribe to SIGINT signals, so that we still output on early exit
 	stopChan := make(chan os.Signal, 1)
 	signal.Notify(stopChan, syscall.SIGINT)
 
-	for (openFetchs > 0 || len(queue) > 0) && exitCode == 0 {
+	for (openFetchs > 0 || len(queue) > 0) && !cancelled {
 		var loopqueue chan string
 		addURL := ""
 		if len(queue) > 0 {
@@ -170,7 +183,7 @@ func run(base string, crawlers int, output io.Writer) (exitCode int) {
 			}
 
 		case <-stopChan:
-			exitCode = 3
+			cancelled = true
 		}
 	}
 
@@ -201,11 +214,14 @@ func run(base string, crawlers int, output io.Writer) (exitCode int) {
 		fmt.Fprintf(output, "%s: %v\n", err.url, err.err)
 	}
 
-	if len(errs) > 0 && exitCode == 0 {
-		exitCode = 1
+	var err error
+	if cancelled {
+		err = ErrCancelled
+	} else if len(errs) > 0 {
+		err = ErrBadLinks
 	}
 
-	return exitCode
+	return err
 }
 
 func fetch(url string, processLinks bool) (links []string, ids map[string]bool, err error) {

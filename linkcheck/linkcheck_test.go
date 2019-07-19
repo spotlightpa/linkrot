@@ -1,4 +1,4 @@
-package main
+package linkcheck
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/carlmjohnson/exitcode"
 )
 
 func TestRun(t *testing.T) {
@@ -28,16 +30,16 @@ func TestRun(t *testing.T) {
 		exitCode int
 		contains string
 	}{
-		{"basic failure", ts.URL + "/404", 1, 1, "/404: 404 Not Found"},
+		{"basic failure", ts.URL + "/404", 1, 4, "/404: 404 Not Found"},
 		{"basic success", ts.URL + "/basic-a.html", 1, 0, ""},
-		{"more crawlers failure", ts.URL + "/404", 5, 1, "/404: 404 Not Found"},
+		{"more crawlers failure", ts.URL + "/404", 5, 4, "/404: 404 Not Found"},
 		{"more crawlers success", ts.URL + "/basic-a.html", 5, 0, ""},
 		{"circular success", ts.URL + "/circular-a.html", 1, 0, ""},
 		{"good external link", ts.URL + "/external-good.html", 1, 0, ""},
-		{"bad external link", ts.URL + "/external-bad.html", 1, 1,
+		{"bad external link", ts.URL + "/external-bad.html", 1, 4,
 			"failed to fetch: https://example.com/404"},
 		{"good ID link", ts.URL + "/id-good-a.html", 1, 0, ""},
-		{"bad ID link", ts.URL + "/id-bad-a.html", 1, 1, "missing fragment"},
+		{"bad ID link", ts.URL + "/id-bad-a.html", 1, 4, "missing fragment"},
 		{"excluded path", ts.URL + "/excluded.html", 1, 0, ""},
 	}
 
@@ -45,8 +47,8 @@ func TestRun(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			if exitCode := run(test.base, test.crawlers, &buf); exitCode != test.exitCode {
-				t.Errorf("Unexpected exit code. Got %d; expected %d.", exitCode, test.exitCode)
+			if code := exitcode.Get(run(test.base, test.crawlers, &buf)); code != test.exitCode {
+				t.Errorf("Unexpected exit code. Got %d; expected %d.", code, test.exitCode)
 			}
 
 			if output := buf.String(); test.contains == "" && output != "" {

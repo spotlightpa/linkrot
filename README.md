@@ -1,14 +1,14 @@
-linkcheck
+linkrot
 =========
 
-linkcheck takes a root URL and recurses down through the links it finds in the
-HTML pages, checking for broken links (HTTP 404).
+Linkrot takes a root URL and recurses down through the links it finds in the
+HTML pages, checking for broken links.
 
 Usage
 -----
 
 ``` shell
-$ linkcheck https://adhocteam.us/
+$ linkrot https://wwww.spotlightpa.org/
 ```
 
 Installation
@@ -17,10 +17,5 @@ Installation
 Requires [Go](https://golang.org/) to be installed.
 
 ``` shell
-$ go get github.com/baltimore-sun-data/linkcheck
+$ go get github.com/spotlightpa/linkrot
 ```
-
-License
--------
-
-See [COPYING](./COPYING).
