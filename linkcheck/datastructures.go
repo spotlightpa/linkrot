@@ -139,6 +139,12 @@ type pageError struct {
 type urlErrors map[string]*pageError
 
 func (ue urlErrors) toMessage(base string) message {
+	if len(ue) < 1 {
+		return message{
+			Text: fmt.Sprintf("No problems with links on %s", base),
+		}
+	}
+
 	ts := time.Now().Unix()
 	atts := make([]attachment, 0, len(ue))
 	for page, pe := range ue {

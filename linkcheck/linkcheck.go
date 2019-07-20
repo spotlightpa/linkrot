@@ -106,7 +106,7 @@ type crawler struct {
 func (c *crawler) run(sc *slackClient) error {
 	errs, cancelled := c.crawl()
 
-	if sc != nil {
+	if sc != nil && len(errs) > 0 {
 		if err := sc.Post(errs.toMessage(c.base)); err != nil {
 			fmt.Fprintf(os.Stderr, "problem with Slack: %v", err)
 		}
