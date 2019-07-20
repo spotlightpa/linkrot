@@ -1,5 +1,7 @@
 module github.com/spotlightpa/linkrot
 
+// +heroku install ./...
+
 go 1.12
 
 require (
