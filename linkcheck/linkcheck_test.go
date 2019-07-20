@@ -1,15 +1,12 @@
 package linkcheck
 
 import (
-	"bytes"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/carlmjohnson/exitcode"
 )
 
 func TestRun(t *testing.T) {
@@ -27,33 +24,37 @@ func TestRun(t *testing.T) {
 		name     string
 		base     string
 		crawlers int
-		exitCode int
+		errLen   int
 		contains string
 	}{
-		{"basic failure", ts.URL + "/404", 1, 4, "/404: 404 Not Found"},
+		{"basic failure", ts.URL + "/404", 1, 1, "404 Not Found"},
 		{"basic success", ts.URL + "/basic-a.html", 1, 0, ""},
-		{"more crawlers failure", ts.URL + "/404", 5, 4, "/404: 404 Not Found"},
+		{"more crawlers failure", ts.URL + "/404", 5, 1, "404 Not Found"},
 		{"more crawlers success", ts.URL + "/basic-a.html", 5, 0, ""},
 		{"circular success", ts.URL + "/circular-a.html", 1, 0, ""},
 		{"good external link", ts.URL + "/external-good.html", 1, 0, ""},
-		{"bad external link", ts.URL + "/external-bad.html", 1, 4,
-			"https://example.com/404: 404 Not Found"},
+		{"bad external link", ts.URL + "/external-bad.html", 1, 1, "https://example.com/404\": 404 Not Found"},
 		{"good ID link", ts.URL + "/id-good-a.html", 1, 0, ""},
-		{"bad ID link", ts.URL + "/id-bad-a.html", 1, 4, "missing fragment"},
+		{"bad ID link", ts.URL + "/id-bad-a.html", 1, 1, "missing fragment"},
 		{"excluded path", ts.URL + "/excluded.html", 1, 0, ""},
 	}
 
 	for _, test := range testcases {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			var buf bytes.Buffer
 			c := crawler{test.base, test.crawlers, log.New(ioutil.Discard, "linkrot", log.LstdFlags)}
-			if code := exitcode.Get(c.run(&buf)); code != test.exitCode {
-				t.Errorf("Unexpected exit code. Got %d; expected %d.", code, test.exitCode)
+
+			errs, _ := c.crawl()
+			output := errs.String()
+
+			if len(errs) != test.errLen {
+				t.Errorf("Unexpected error length. Got %d; expected %d.",
+					len(errs), test.errLen)
 			}
 
-			if output := buf.String(); test.contains == "" && output != "" {
-				t.Errorf("Unexpected output. Got %q; expected no output.", output)
+			if test.contains == "" && output != "" {
+				t.Errorf("Unexpected output. Got %q; expected no output.",
+					output)
 			} else if !strings.Contains(output, test.contains) {
 				t.Errorf("Output missing expected sequence. Got %q; expected to contain %q.",
 					output, test.contains)

@@ -1,6 +1,11 @@
 package linkcheck
 
-import "strings"
+import (
+	"bytes"
+	"fmt"
+	"strings"
+	"time"
+)
 
 type queue struct {
 	base string
@@ -42,14 +47,6 @@ func (q *queue) add(link string) {
 	q.m[link] = true
 }
 
-type pageError struct {
-	err              error
-	refs             []string
-	missingFragments map[string]bool
-}
-
-type urlErrors map[string]*pageError
-
 // fetchResult is a type so that we can send fetch's results on a channel
 type fetchResult struct {
 	url   string
@@ -75,17 +72,10 @@ func (cp crawledPages) add(fr fetchResult) {
 		cp[fr.url] = pageInfo{err: fr.err}
 		return
 	}
-	pi := pageInfo{
-		ids:   make(map[string]bool, len(fr.ids)),
-		links: make(map[string]bool, len(fr.links)),
+	cp[fr.url] = pageInfo{
+		ids:   sliceToSet(fr.ids),
+		links: sliceToSet(fr.links),
 	}
-	for _, link := range fr.links {
-		pi.links[link] = true
-	}
-	for _, id := range fr.ids {
-		pi.ids[id] = true
-	}
-	cp[fr.url] = pi
 }
 
 func (cp crawledPages) addLinksToQueue(url string, q *queue) {
@@ -138,4 +128,58 @@ func (cp crawledPages) toURLErrors(base string) urlErrors {
 		requestErrs[url] = pe
 	}
 	return requestErrs
+}
+
+type pageError struct {
+	err              error
+	refs             []string
+	missingFragments map[string]bool
+}
+
+type urlErrors map[string]*pageError
+
+func (ue urlErrors) toMessage(base string) message {
+	ts := time.Now().Unix()
+	atts := make([]attachment, 0, len(ue))
+	for page, pe := range ue {
+		linkedFrom := strings.Join(pe.refs, ", ")
+		fields := []field{
+			{
+				Title: "Linked from",
+				Value: linkedFrom,
+			},
+		}
+		if pe.err == ErrMissingFragment {
+			fields = append(fields, field{
+				Title: "Missing ID",
+				Value: strings.Join(setToSlice(pe.missingFragments), ", "),
+			})
+		}
+		atts = append(atts, attachment{
+			Color:     "#f70",
+			Title:     page,
+			Text:      pe.err.Error(),
+			Fallback:  fmt.Sprintf("%s: %v", page, pe.err),
+			TimeStamp: ts,
+			Fields:    fields,
+		})
+	}
+	return message{
+		Text:        fmt.Sprintf("Problem with links on %s", base),
+		Attachments: atts,
+	}
+}
+
+func (ue urlErrors) String() string {
+	var buf bytes.Buffer
+	for page, pe := range ue {
+		fmt.Fprintf(&buf, "%q: %v\n", page, pe.err)
+		if pe.err == ErrMissingFragment {
+			fmt.Fprintf(&buf, "- ids: %s\n",
+				strings.Join(setToSlice(pe.missingFragments), ", "),
+			)
+		}
+		fmt.Fprintf(&buf, " - refs: %s\n", strings.Join(pe.refs, ", "))
+	}
+	return buf.String()
 }

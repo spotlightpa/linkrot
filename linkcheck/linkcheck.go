@@ -55,6 +55,7 @@ Options:
 	}
 
 	verbose := fl.Bool("verbose", false, "verbose")
+	slack := fl.String("slack-hook-url", "", "send errors to Slack webhook URL")
 	crawlers := fl.Int("crawlers", runtime.NumCPU(), "number of concurrent crawlers")
 	excludes := fl.String("exclude", "", "comma separated list of URL prefixes to ignore")
 	if err := fl.Parse(args); err != nil {
@@ -90,8 +91,10 @@ Options:
 		excludePaths = strings.Split(*excludes, ",")
 	}
 
+	sc := newSlackClient(*slack)
+
 	c := &crawler{base.String(), *crawlers, logger}
-	return c.run(os.Stdout)
+	return c.run(sc)
 }
 
 type crawler struct {
@@ -100,13 +103,16 @@ type crawler struct {
 	*log.Logger
 }
 
-func (c *crawler) run(w io.Writer) error {
+func (c *crawler) run(sc *slackClient) error {
 	errs, cancelled := c.crawl()
 
-	// TODO: maybe output this as CSV or something?
-	for url, err := range errs {
-		fmt.Fprintf(w, "%s: %v\n", url, err.err)
+	if sc != nil {
+		if err := sc.Post(errs.toMessage(c.base)); err != nil {
+			fmt.Fprintf(os.Stderr, "problem with Slack: %v", err)
+		}
 	}
+
+	fmt.Println(errs)
 
 	var err error
 	if cancelled {
