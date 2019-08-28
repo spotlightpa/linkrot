@@ -3,43 +3,7 @@ package linkcheck
 import (
 	"net/url"
 	"sort"
-	"strings"
 )
-
-// excludeLink globals
-var (
-	invalidProtos = []string{
-		"mailto:",
-		"javascript:",
-		"tel:",
-		"sms:",
-	}
-	excludePaths []string
-)
-
-func excludeLink(ref string) bool {
-	for _, proto := range invalidProtos {
-		if strings.HasPrefix(ref, proto) {
-			return true
-		}
-	}
-	for _, prefix := range excludePaths {
-		if strings.HasPrefix(ref, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
-// parses URL and resolves references
-func parseURL(baseurl, ref string) string {
-	base, _ := url.Parse(baseurl)
-	u, err := url.Parse(ref)
-	if err != nil {
-		panic(err)
-	}
-	return base.ResolveReference(u).String()
-}
 
 func removeFragment(link string) string {
 	u, _ := url.Parse(link)

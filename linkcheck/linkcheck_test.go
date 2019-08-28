@@ -14,7 +14,7 @@ func TestRun(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 
 	// Special for excluded path test
-	excludePaths = []string{"https://example.com/excluded-path"}
+	excludePaths := []string{"https://example.com/excluded-path"}
 
 	// Test server for our known sites
 	ts := httptest.NewServer(http.FileServer(http.Dir("test-fixtures/sample-site")))
@@ -42,7 +42,7 @@ func TestRun(t *testing.T) {
 	for _, test := range testcases {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			c := crawler{test.base, test.crawlers, log.New(ioutil.Discard, "linkrot", log.LstdFlags)}
+			c := crawler{test.base, test.crawlers, excludePaths, log.New(ioutil.Discard, "linkrot", log.LstdFlags)}
 
 			errs, _ := c.crawl()
 			output := errs.String()

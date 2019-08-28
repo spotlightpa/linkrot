@@ -11,7 +11,6 @@ package linkcheck
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,14 +21,11 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
 
 	"github.com/carlmjohnson/exitcode"
-
-	"golang.org/x/net/html"
 )
 
 var (
@@ -87,19 +83,20 @@ Options:
 		logger = log.New(os.Stderr, "linkrot ", log.LstdFlags)
 	}
 
+	var excludePaths []string
 	if *excludes != "" {
 		excludePaths = strings.Split(*excludes, ",")
 	}
+	c := &crawler{base.String(), *crawlers, excludePaths, logger}
 
 	sc := newSlackClient(*slack)
-
-	c := &crawler{base.String(), *crawlers, logger}
 	return c.run(sc)
 }
 
 type crawler struct {
-	base    string
-	workers int
+	base         string
+	workers      int
+	excludePaths []string
 	*log.Logger
 }
 
@@ -187,12 +184,17 @@ func (c *crawler) crawl() (errs urlErrors, cancelled bool) {
 }
 
 func (c *crawler) fetch(url string) fetchResult {
-	processLinks := strings.HasPrefix(url, c.base)
-	links, ids, err := c.processURL(url, processLinks)
+	c.Printf("start fetching %q", url)
+	links, ids, err := c.doFetch(url)
+	if err == nil {
+		c.Printf("done fetching %q", url)
+	} else {
+		c.Printf("problem fetching %q", url)
+	}
 	return fetchResult{url, links, ids, err}
 }
 
-func (c *crawler) processURL(url string, processLinks bool) (links, ids []string, err error) {
+func (c *crawler) doFetch(url string) (links, ids []string, err error) {
 	res, err := http.Get(url)
 	if err != nil {
 		return nil, nil, err
@@ -223,14 +225,12 @@ func (c *crawler) processURL(url string, processLinks bool) (links, ids []string
 		return nil, nil, err
 	}
 
-	c.Println("Got OK:", url)
+	if c.shouldGetLinks(url) {
+		for _, link := range c.getLinks(url, slurp) {
+			c.Printf("url %s links to %s", url, link)
 
-	if processLinks {
-		for _, ref := range c.getLinks(url, slurp) {
-			c.Printf("url %s links to %s", url, ref)
-
-			if !excludeLink(ref) {
-				links = append(links, ref)
+			if !c.isExcluded(link) {
+				links = append(links, link)
 			}
 		}
 	}
@@ -239,50 +239,32 @@ func (c *crawler) processURL(url string, processLinks bool) (links, ids []string
 	return links, ids, nil
 }
 
-func (c *crawler) getLinks(url string, body []byte) (links []string) {
-	doc, err := html.Parse(bytes.NewReader(body))
+func (c *crawler) shouldGetLinks(url string) bool {
+	return strings.HasPrefix(url, c.base)
+}
+
+func (c *crawler) getLinks(pageurl string, body []byte) (links []string) {
+	u, _ := url.Parse(pageurl)
+	links, err := getLinks(u, body)
 	if err != nil {
 		c.Printf("error parsing HTML: %v", err)
-		// TODO: Should we return an error here?
+		// TODO: Should we return the error here?
 		return
 	}
 
-	var f func(*html.Node)
-	f = func(n *html.Node) {
-		if isAnchor(n) {
-			ref := href(n)
-			ref = parseURL(url, ref)
-			links = append(links, ref)
-		}
-
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			f(c)
-		}
-	}
-	f(doc)
-
-	return
+	return links
 }
 
-var idRx = regexp.MustCompile(`\bid=['"]?([^\s'">]+)`)
-
-func pageIDs(body []byte) (ids []string) {
-	mv := idRx.FindAllSubmatch(body, -1)
-	for _, m := range mv {
-		ids = append(ids, string(m[1]))
+func (c *crawler) isExcluded(link string) bool {
+	if !strings.HasPrefix(link, "http://") && !strings.HasPrefix(link, "https://") {
+		c.Printf("link has excluded protocol: %q", link)
+		return true
 	}
-	return
-}
 
-func isAnchor(n *html.Node) bool {
-	return n.Type == html.ElementNode && n.Data == "a"
-}
-
-func href(n *html.Node) string {
-	for _, attr := range n.Attr {
-		if attr.Key == "href" {
-			return attr.Val
+	for _, prefixPath := range c.excludePaths {
+		if strings.HasPrefix(link, prefixPath) {
+			return true
 		}
 	}
-	return ""
+	return false
 }
