@@ -32,12 +32,14 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
+// Errors native to linkcheck
 var (
 	ErrCancelled       = exitcode.Set(errors.New("scraping canceled by SIGINT"), 3)
 	ErrBadLinks        = exitcode.Set(errors.New("found bad links"), 4)
 	ErrMissingFragment = errors.New("page missing fragments")
 )
 
+// CLI runs the linkrot executable, equivalent to calling it on the command line.
 func CLI(args []string) error {
 	fl := flag.NewFlagSet("linkrot", flag.ContinueOnError)
 	fl.Usage = func() {
