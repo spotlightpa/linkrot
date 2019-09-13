@@ -42,7 +42,7 @@ func TestRun(t *testing.T) {
 	for _, test := range testcases {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			c := crawler{test.base, test.crawlers, excludePaths, log.New(ioutil.Discard, "linkrot", log.LstdFlags)}
+			c := crawler{test.base, test.crawlers, excludePaths, log.New(ioutil.Discard, "linkrot", log.LstdFlags), http.DefaultClient}
 
 			errs, _ := c.crawl()
 			output := errs.String()

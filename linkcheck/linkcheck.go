@@ -18,14 +18,17 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"os/signal"
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/carlmjohnson/exitcode"
+	"golang.org/x/net/publicsuffix"
 )
 
 var (
@@ -53,6 +56,7 @@ Options:
 	verbose := fl.Bool("verbose", false, "verbose")
 	slack := fl.String("slack-hook-url", "", "send errors to Slack webhook URL")
 	crawlers := fl.Int("crawlers", runtime.NumCPU(), "number of concurrent crawlers")
+	timeout := fl.Duration("timeout", 10*time.Second, "timeout for requesting a URL")
 	excludes := fl.String("exclude", "", "comma separated list of URL prefixes to ignore")
 	if err := fl.Parse(args); err != nil {
 		return err
@@ -87,7 +91,19 @@ Options:
 	if *excludes != "" {
 		excludePaths = strings.Split(*excludes, ",")
 	}
-	c := &crawler{base.String(), *crawlers, excludePaths, logger}
+
+	// As of Go 1.13, cookiejar.New always returns nil error
+	jar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	c := &crawler{
+		base.String(),
+		*crawlers,
+		excludePaths,
+		logger,
+		&http.Client{
+			Jar:     jar,
+			Timeout: *timeout,
+		},
+	}
 
 	sc := newSlackClient(*slack)
 	return c.run(sc)
@@ -98,6 +114,7 @@ type crawler struct {
 	workers      int
 	excludePaths []string
 	*log.Logger
+	*http.Client
 }
 
 func (c *crawler) run(sc *slackClient) error {
@@ -195,7 +212,7 @@ func (c *crawler) fetch(url string) fetchResult {
 }
 
 func (c *crawler) doFetch(url string) (links, ids []string, err error) {
-	res, err := http.Get(url)
+	res, err := c.Client.Get(url)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -214,7 +231,7 @@ func (c *crawler) doFetch(url string) (links, ids []string, err error) {
 		return nil, nil, err
 	}
 
-	if ct := http.DetectContentType(peek); !strings.HasPrefix(ct, "text/html") {
+	if ct := http.DetectContentType(peek); !strings.HasPrefix(ct, "text/html") && !strings.HasPrefix(ct, "text/xml") {
 		c.Printf("Skipping %s, content-type %s", url, ct)
 		return nil, nil, nil
 	}
