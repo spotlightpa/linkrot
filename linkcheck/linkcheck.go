@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/carlmjohnson/exitcode"
+	"github.com/peterbourgon/ff"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -47,6 +48,8 @@ linkcheck [options] <url>
     linkcheck takes a root URL and recurses down through the links it finds
     in the HTML pages, checking for broken links (HTTP status != 200).
 
+    Options may also be specified as env vars prefixed with "LINKROT_".
+
 Options:
 `
 		fmt.Fprintln(os.Stderr, usage)
@@ -58,7 +61,8 @@ Options:
 	crawlers := fl.Int("crawlers", runtime.NumCPU(), "number of concurrent crawlers")
 	timeout := fl.Duration("timeout", 10*time.Second, "timeout for requesting a URL")
 	excludes := fl.String("exclude", "", "comma separated list of URL prefixes to ignore")
-	if err := fl.Parse(args); err != nil {
+
+	if err := ff.Parse(fl, args, ff.WithEnvVarPrefix("LINKROT")); err != nil {
 		return err
 	}
 
