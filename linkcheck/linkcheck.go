@@ -39,6 +39,10 @@ var (
 	ErrMissingFragment = errors.New("page missing fragments")
 )
 
+const (
+	chromeUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36"
+)
+
 // CLI runs the linkrot executable, equivalent to calling it on the command line.
 func CLI(args []string) error {
 	fl := flag.NewFlagSet("linkrot", flag.ContinueOnError)
@@ -109,6 +113,7 @@ Options:
 			Jar:     jar,
 			Timeout: *timeout,
 		},
+		chromeUserAgent,
 	}
 
 	sc := newSlackClient(*slack)
@@ -121,6 +126,7 @@ type crawler struct {
 	excludePaths []string
 	*log.Logger
 	*http.Client
+	userAgent string
 }
 
 func (c *crawler) run(sc *slackClient) error {
@@ -218,7 +224,12 @@ func (c *crawler) fetch(url string) fetchResult {
 }
 
 func (c *crawler) doFetch(url string) (links, ids []string, err error) {
-	res, err := c.Client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	req.Header.Set("User-Agent", c.userAgent)
+	res, err := c.Client.Do(req)
 	if err != nil {
 		return nil, nil, err
 	}
