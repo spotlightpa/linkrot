@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/carlmjohnson/exitcode"
+	"github.com/carlmjohnson/flagext"
 	"github.com/peterbourgon/ff"
 	"golang.org/x/net/publicsuffix"
 )
@@ -66,7 +67,8 @@ Options:
 	slack := fl.String("slack-hook-url", "", "send errors to Slack webhook URL")
 	crawlers := fl.Int("crawlers", runtime.NumCPU(), "number of concurrent crawlers")
 	timeout := fl.Duration("timeout", 10*time.Second, "timeout for requesting a URL")
-	excludes := fl.String("exclude", "", "comma separated list of URL prefixes to ignore")
+	var excludePaths []string
+	fl.Var((*flagext.Strings)(&excludePaths), "exclude", "URL prefix to ignore; can repeat to exclude multiple URLs")
 
 	if err := ff.Parse(fl, args, ff.WithEnvVarPrefix("LINKROT")); err != nil {
 		return err
@@ -95,11 +97,6 @@ Options:
 	logger := log.New(ioutil.Discard, "linkrot ", log.LstdFlags)
 	if *verbose {
 		logger = log.New(os.Stderr, "linkrot ", log.LstdFlags)
-	}
-
-	var excludePaths []string
-	if *excludes != "" {
-		excludePaths = strings.Split(*excludes, ",")
 	}
 
 	// As of Go 1.13, cookiejar.New always returns nil error

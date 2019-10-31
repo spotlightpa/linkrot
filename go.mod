@@ -7,6 +7,7 @@ go 1.13
 
 require (
 	github.com/carlmjohnson/exitcode v0.0.2
+	github.com/carlmjohnson/flagext v0.0.6
 	github.com/peterbourgon/ff v1.6.0
-	golang.org/x/net v0.0.0-20190628185345-da137c7871d7
+	golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271
 )
