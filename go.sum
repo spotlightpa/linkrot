@@ -3,6 +3,8 @@ github.com/carlmjohnson/exitcode v0.0.2 h1:JVKc/p+ReaL/4J/EYKxX8dBtpnY1xn6V0FnIu
 github.com/carlmjohnson/exitcode v0.0.2/go.mod h1:WPQ6eZJg+s0qVgGDoPEAt8ONPl6dJGPG8ft/E8NUiMw=
 github.com/carlmjohnson/flagext v0.0.6 h1:JX3Qx+7hspQ1Lzlt2bLlg2Ezug3WK/oapgtQaGDGqz8=
 github.com/carlmjohnson/flagext v0.0.6/go.mod h1:Eenv0epIUAr4NuedNmkzI8WmBmjIxZC239XcKxYS2ac=
+github.com/carlmjohnson/slackhook v0.0.3 h1:Qz0NTTXuwPuco7MS+NZBYmpvjBeflIEta0uujHqcOqc=
+github.com/carlmjohnson/slackhook v0.0.3/go.mod h1:1Knm3+QnVN1d2zkyT0wunjN/cy+Jw13vrl2zw8iIkiE=
 github.com/mitchellh/go-wordwrap v1.0.0/go.mod h1:ZXFpozHsX6DPmq2I0TCekCxypsnAUbP2oI0UX1GXzOo=
 github.com/peterbourgon/ff v1.6.0 h1:DNnSOwtqmHfQ/yLgdOvtN4eFzP4ps+IjNhUEW9/ZkIg=
 github.com/peterbourgon/ff v1.6.0/go.mod h1:8rO4i98n/oYmyP28qiK6V4jGB85nMNVr+qwSErTwFrs=

@@ -29,6 +29,7 @@ import (
 
 	"github.com/carlmjohnson/exitcode"
 	"github.com/carlmjohnson/flagext"
+	"github.com/carlmjohnson/slackhook"
 	"github.com/peterbourgon/ff"
 	"golang.org/x/net/publicsuffix"
 )
@@ -110,11 +111,13 @@ Options:
 			Jar:     jar,
 			Timeout: *timeout,
 		},
+		slackhook.New(*slack, &http.Client{
+			Timeout: *timeout,
+		}),
 		chromeUserAgent,
 	}
 
-	sc := newSlackClient(*slack)
-	return c.run(sc)
+	return c.run()
 }
 
 type crawler struct {
@@ -123,14 +126,15 @@ type crawler struct {
 	excludePaths []string
 	*log.Logger
 	*http.Client
+	sc        *slackhook.Client
 	userAgent string
 }
 
-func (c *crawler) run(sc *slackClient) error {
+func (c *crawler) run() error {
 	errs, cancelled := c.crawl()
 
-	if sc != nil && len(errs) > 0 {
-		if err := sc.Post(errs.toMessage(c.base)); err != nil {
+	if len(errs) > 0 {
+		if err := c.sc.Post(errs.toMessage(c.base)); err != nil {
 			fmt.Fprintf(os.Stderr, "problem with Slack: %v", err)
 		}
 	}
