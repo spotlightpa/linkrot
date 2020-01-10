@@ -50,9 +50,11 @@ func TestRun(t *testing.T) {
 				http.DefaultClient,
 				nil,
 				chromeUserAgent,
+				nil,
 			}
 
-			errs, _ := c.crawl()
+			pages, _ := c.crawl()
+			errs := pages.toURLErrors(c.base)
 			output := errs.String()
 
 			if len(errs) != test.errLen {

@@ -11,6 +11,7 @@ package linkcheck
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,11 +28,16 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/carlmjohnson/errutil"
 	"github.com/carlmjohnson/exitcode"
 	"github.com/carlmjohnson/flagext"
 	"github.com/carlmjohnson/slackhook"
+	"github.com/go-redsync/redsync"
+	"github.com/gomodule/redigo/redis"
 	"github.com/peterbourgon/ff"
 	"golang.org/x/net/publicsuffix"
+
+	"github.com/spotlightpa/linkrot/internal/redisflag"
 )
 
 // Errors native to linkcheck
@@ -70,7 +76,7 @@ Options:
 	timeout := fl.Duration("timeout", 10*time.Second, "timeout for requesting a URL")
 	var excludePaths []string
 	fl.Var((*flagext.Strings)(&excludePaths), "exclude", "URL prefix to ignore; can repeat to exclude multiple URLs")
-
+	getDialer := redisflag.Var(fl, "redis-url", "`URL` connection string for Redis")
 	if err := ff.Parse(fl, args, ff.WithEnvVarPrefix("LINKROT")); err != nil {
 		return err
 	}
@@ -115,6 +121,19 @@ Options:
 			Timeout: *timeout,
 		}),
 		chromeUserAgent,
+		nil,
+	}
+
+	if dialer := getDialer(); dialer != nil {
+		c.rp = &redis.Pool{
+			MaxIdle:     3,
+			IdleTimeout: 4 * time.Minute,
+			Dial:        dialer,
+		}
+		if err = c.Ping(); err != nil {
+			c.Printf("connecting to redis: %v", err)
+			return err
+		}
 	}
 
 	return c.run()
@@ -128,10 +147,17 @@ type crawler struct {
 	*http.Client
 	sc        *slackhook.Client
 	userAgent string
+	rp        *redis.Pool
 }
 
 func (c *crawler) run() error {
-	errs, cancelled := c.crawl()
+	pages, cancelled := c.crawl()
+	errs, connErr := c.filterErrors(pages)
+	if connErr != nil {
+		c.sc.Post(slackhook.Message{Text: connErr.Error()})
+		fmt.Fprintf(os.Stderr, "problem filtering errors: %v\n", connErr)
+		return exitcode.Set(connErr, 5)
+	}
 
 	if len(errs) > 0 {
 		if err := c.sc.Post(errs.toMessage(c.base)); err != nil {
@@ -151,7 +177,7 @@ func (c *crawler) run() error {
 	return err
 }
 
-func (c *crawler) crawl() (errs urlErrors, cancelled bool) {
+func (c *crawler) crawl() (crawled crawledPages, cancelled bool) {
 	c.Printf("starting %d crawlers", c.workers)
 
 	var (
@@ -170,11 +196,11 @@ func (c *crawler) crawl() (errs urlErrors, cancelled bool) {
 	var (
 		// List of URLs that need to be crawled
 		q = newQueue(c.base)
-		// database of what we've collected
-		crawled = newCrawledPages()
 		// How many fetches we're waiting on
 		openFetchs int
 	)
+	// database of what we've collected
+	crawled = newCrawledPages()
 
 	// subscribe to SIGINT signals, so that we still output on early exit
 	stopChan := make(chan os.Signal, 1)
@@ -210,7 +236,7 @@ func (c *crawler) crawl() (errs urlErrors, cancelled bool) {
 	// Fetched everything!
 	close(workerqueue)
 
-	return crawled.toURLErrors(c.base), cancelled
+	return crawled, cancelled
 }
 
 func (c *crawler) fetch(url string) fetchResult {
@@ -302,4 +328,120 @@ func (c *crawler) isExcluded(link string) bool {
 		}
 	}
 	return false
+}
+
+func (c *crawler) filterErrors(pages crawledPages) (urlErrors, error) {
+	errs := pages.toURLErrors(c.base)
+	if c.rp == nil {
+		c.Println("skipping redis dedupe")
+		return errs, nil
+	}
+
+	/*
+		If a page has an error and has not had success in > successInt
+		and an alert has not been sent in > alertInt
+		then send the alert and update the alert time.
+	*/
+
+	lock := redsync.
+		New([]redsync.Pool{c.rp}).
+		NewMutex("filtererrors.lock")
+	if err := lock.Lock(); err != nil {
+		return nil, err
+	}
+	defer lock.Unlock()
+
+	v := struct{ Good, Alert map[string]time.Time }{
+		Good:  make(map[string]time.Time),
+		Alert: make(map[string]time.Time),
+	}
+	if err := c.Get("filtererrors.vals", &v); err != nil && err != redis.ErrNil {
+		return nil, err
+	}
+
+	const (
+		successInt = 24 * time.Hour
+		alertInt   = 24 * time.Hour
+	)
+	now := time.Now()
+
+	filteredErrs := make(urlErrors, len(errs))
+	for url := range errs {
+		if t, ok := v.Good[url]; ok && now.Sub(t) < successInt {
+			continue
+		}
+		if t, ok := v.Alert[url]; ok && now.Sub(t) < alertInt {
+			continue
+		}
+		filteredErrs[url] = errs[url]
+		v.Alert[url] = now
+	}
+
+	for url := range pages {
+		if _, ok := errs[url]; !ok {
+			v.Good[url] = now
+		}
+	}
+
+	if err := c.Set("filtererrors.vals", &v); err != nil {
+		return nil, err
+	}
+
+	c.Printf("had %d errors, reporting %d", len(errs), len(filteredErrs))
+	return filteredErrs, nil
+}
+
+// Ping Redis
+func (c *crawler) Ping() (err error) {
+	c.Println("Ping Redis")
+	conn := c.rp.Get()
+	defer errutil.Defer(&err, conn.Close)
+
+	_, err = conn.Do("PING")
+	return
+}
+
+// Get calls GET in Redis and converts values from JSON bytes
+func (c *crawler) Get(key string, getv interface{}) (err error) {
+	c.Printf("Redis GET %q", key)
+	conn := c.rp.Get()
+	defer errutil.Defer(&err, conn.Close)
+
+	getb, err := redis.Bytes(conn.Do("GET", key))
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(getb, getv)
+}
+
+// Set converts values to JSON bytes and calls SET in Redis
+func (c *crawler) Set(key string, setv interface{}) (err error) {
+	c.Printf("Redis SET %q", key)
+	conn := c.rp.Get()
+	defer errutil.Defer(&err, conn.Close)
+
+	setb, err := json.Marshal(setv)
+	if err != nil {
+		return err
+	}
+
+	_, err = conn.Do("SET", key, setb)
+	return err
+}
+
+// GetSet converts values to JSON bytes and calls GETSET in Redis
+func (c *crawler) GetSet(key string, getv, setv interface{}) (err error) {
+	c.Printf("Redis GETSET %q", key)
+	conn := c.rp.Get()
+	defer errutil.Defer(&err, conn.Close)
+
+	setb, err := json.Marshal(setv)
+	if err != nil {
+		return err
+	}
+	getb, err := redis.Bytes(conn.Do("GETSET", key, setb))
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(getb, getv)
 }
