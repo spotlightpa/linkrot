@@ -131,7 +131,7 @@ Options:
 			Dial:        dialer,
 		}
 		if err = c.Ping(); err != nil {
-			c.Printf("connecting to redis: %v", err)
+			c.Printf("connecting to Redis: %v", err)
 			return err
 		}
 	}
@@ -333,7 +333,7 @@ func (c *crawler) isExcluded(link string) bool {
 func (c *crawler) filterErrors(pages crawledPages) (urlErrors, error) {
 	errs := pages.toURLErrors(c.base)
 	if c.rp == nil {
-		c.Println("skipping redis dedupe")
+		c.Println("skipping Redis dedupe")
 		return errs, nil
 	}
 
@@ -342,14 +342,11 @@ func (c *crawler) filterErrors(pages crawledPages) (urlErrors, error) {
 		and an alert has not been sent in > alertInt
 		then send the alert and update the alert time.
 	*/
-
-	lock := redsync.
-		New([]redsync.Pool{c.rp}).
-		NewMutex("filtererrors.lock")
-	if err := lock.Lock(); err != nil {
+	unlock, err := c.GetLock("filtererrors.lock")
+	if err != nil {
 		return nil, err
 	}
-	defer lock.Unlock()
+	defer unlock()
 
 	v := struct{ Good, Alert map[string]time.Time }{
 		Good:  make(map[string]time.Time),
@@ -393,7 +390,7 @@ func (c *crawler) filterErrors(pages crawledPages) (urlErrors, error) {
 
 // Ping Redis
 func (c *crawler) Ping() (err error) {
-	c.Println("Ping Redis")
+	c.Println("do Redis PING")
 	conn := c.rp.Get()
 	defer errutil.Defer(&err, conn.Close)
 
@@ -403,7 +400,7 @@ func (c *crawler) Ping() (err error) {
 
 // Get calls GET in Redis and converts values from JSON bytes
 func (c *crawler) Get(key string, getv interface{}) (err error) {
-	c.Printf("Redis GET %q", key)
+	c.Printf("do Redis GET %q", key)
 	conn := c.rp.Get()
 	defer errutil.Defer(&err, conn.Close)
 
@@ -416,7 +413,7 @@ func (c *crawler) Get(key string, getv interface{}) (err error) {
 
 // Set converts values to JSON bytes and calls SET in Redis
 func (c *crawler) Set(key string, setv interface{}) (err error) {
-	c.Printf("Redis SET %q", key)
+	c.Printf("do Redis SET %q", key)
 	conn := c.rp.Get()
 	defer errutil.Defer(&err, conn.Close)
 
@@ -431,7 +428,7 @@ func (c *crawler) Set(key string, setv interface{}) (err error) {
 
 // GetSet converts values to JSON bytes and calls GETSET in Redis
 func (c *crawler) GetSet(key string, getv, setv interface{}) (err error) {
-	c.Printf("Redis GETSET %q", key)
+	c.Printf("do Redis GETSET %q", key)
 	conn := c.rp.Get()
 	defer errutil.Defer(&err, conn.Close)
 
@@ -444,4 +441,18 @@ func (c *crawler) GetSet(key string, getv, setv interface{}) (err error) {
 		return err
 	}
 	return json.Unmarshal(getb, getv)
+}
+
+func (c *crawler) GetLock(key string) (unlock func(), err error) {
+	c.Printf("get Redis lock %q", key)
+	lock := redsync.
+		New([]redsync.Pool{c.rp}).
+		NewMutex(key)
+	if err := lock.Lock(); err != nil {
+		return nil, err
+	}
+	return func() {
+		c.Printf("return Redis lock %q", key)
+		lock.Unlock()
+	}, nil
 }
