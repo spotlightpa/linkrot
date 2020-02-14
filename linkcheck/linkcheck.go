@@ -250,8 +250,8 @@ func (c *crawler) fetch(url string) fetchResult {
 	return fetchResult{url, links, ids, err}
 }
 
-func (c *crawler) doFetch(url string) (links, ids []string, err error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func (c *crawler) doFetch(pageurl string) (links, ids []string, err error) {
+	req, err := http.NewRequest(http.MethodGet, pageurl, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -271,24 +271,34 @@ func (c *crawler) doFetch(url string) (links, ids []string, err error) {
 	// http.DetectContentType only uses first 512 bytes
 	peek, err := buf.Peek(512)
 	if err != nil && err != io.EOF {
-		c.Printf("Error initially reading %s body: %v", url, err)
+		c.Printf("Error initially reading %s body: %v", pageurl, err)
 		return nil, nil, err
 	}
 
 	if ct := http.DetectContentType(peek); !strings.HasPrefix(ct, "text/html") && !strings.HasPrefix(ct, "text/xml") {
-		c.Printf("Skipping %s, content-type %s", url, ct)
+		c.Printf("Skipping %s, content-type %s", pageurl, ct)
 		return nil, nil, nil
 	}
 
 	slurp, err := ioutil.ReadAll(buf)
 	if err != nil {
-		c.Printf("Error reading %s body: %v", url, err)
+		c.Printf("Error reading %s body: %v", pageurl, err)
 		return nil, nil, err
 	}
 
-	if c.shouldGetLinks(url) {
-		for _, link := range c.getLinks(url, slurp) {
-			c.Printf("url %s links to %s", url, link)
+	shouldGetLinks := c.shouldGetLinks(pageurl)
+	// must be a good URL coz I fetched it
+	u, _ := url.Parse(pageurl)
+	var allLinks []string
+	ids, allLinks, err = getIDsAndLinks(u, slurp, shouldGetLinks)
+	if err != nil {
+		c.Printf("error parsing HTML: %v", err)
+		// TODO: Should we return the error here?
+	}
+
+	if shouldGetLinks {
+		for _, link := range allLinks {
+			c.Printf("url %s links to %s", pageurl, link)
 
 			if !c.isExcluded(link) {
 				links = append(links, link)
@@ -296,24 +306,11 @@ func (c *crawler) doFetch(url string) (links, ids []string, err error) {
 		}
 	}
 
-	ids = pageIDs(slurp)
 	return links, ids, nil
 }
 
 func (c *crawler) shouldGetLinks(url string) bool {
 	return strings.HasPrefix(url, c.base)
-}
-
-func (c *crawler) getLinks(pageurl string, body []byte) (links []string) {
-	u, _ := url.Parse(pageurl)
-	links, err := getLinks(u, body)
-	if err != nil {
-		c.Printf("error parsing HTML: %v", err)
-		// TODO: Should we return the error here?
-		return
-	}
-
-	return links
 }
 
 func (c *crawler) isExcluded(link string) bool {

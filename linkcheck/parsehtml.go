@@ -3,24 +3,28 @@ package linkcheck
 import (
 	"bytes"
 	"net/url"
-	"regexp"
+	"strings"
 
 	"golang.org/x/net/html"
 )
 
-func getLinks(pageurl *url.URL, body []byte) (links []string, err error) {
+func getIDsAndLinks(pageurl *url.URL, body []byte, getLinks bool) (ids, links []string, err error) {
 	doc, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	visitAll(doc, func(n *html.Node) {
+		ids = append(ids, getIDs(n)...)
+		if !getLinks {
+			return
+		}
 		if link := linkFromAHref(pageurl, n); link != "" {
 			links = append(links, link)
 		}
 	})
 
-	return links, nil
+	return ids, links, nil
 }
 
 func visitAll(n *html.Node, callback func(*html.Node)) {
@@ -42,6 +46,16 @@ func isAnchor(n *html.Node) bool {
 	return n.Type == html.ElementNode && n.Data == "a"
 }
 
+func getIDs(n *html.Node) []string {
+	var ids []string
+	for _, attr := range n.Attr {
+		if attr.Key == "id" && !strings.HasPrefix(attr.Val, "!") {
+			ids = append(ids, attr.Val)
+		}
+	}
+	return ids
+}
+
 func href(n *html.Node) string {
 	for _, attr := range n.Attr {
 		if attr.Key == "href" {
@@ -57,14 +71,4 @@ func resolveRef(baseurl *url.URL, ref string) string {
 		return ""
 	}
 	return baseurl.ResolveReference(u).String()
-}
-
-var idRx = regexp.MustCompile(`\bid=['"]?([^\s'">]+)`)
-
-func pageIDs(body []byte) (ids []string) {
-	mv := idRx.FindAllSubmatch(body, -1)
-	for _, m := range mv {
-		ids = append(ids, string(m[1]))
-	}
-	return
 }
