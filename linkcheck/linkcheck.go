@@ -263,8 +263,12 @@ func (c *crawler) doFetch(pageurl string) (links, ids []string, err error) {
 
 	defer res.Body.Close()
 
-	if res.StatusCode != 200 {
-		return nil, nil, errors.New(res.Status)
+	if err = statusCheck(res,
+		http.StatusOK,
+		// Accepting this because it usually means we hit a paywall
+		http.StatusForbidden,
+	); err != nil {
+		return nil, nil, err
 	}
 
 	buf := bufio.NewReader(res.Body)

@@ -1,6 +1,8 @@
 package linkcheck
 
 import (
+	"fmt"
+	"net/http"
 	"net/url"
 	"sort"
 )
@@ -34,4 +36,14 @@ func setToSlice(set map[string]bool) []string {
 	}
 	sort.Strings(ss)
 	return ss
+}
+
+func statusCheck(resp *http.Response, acceptStatuses ...int) error {
+	for _, code := range acceptStatuses {
+		if resp.StatusCode == code {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("unexpected status: %s", resp.Status)
 }
