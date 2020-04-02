@@ -109,8 +109,10 @@ func (cp crawledPages) toURLErrors(base string) urlErrors {
 			if pe, ok := requestErrs[link]; ok {
 				pe.refs = append(pe.refs, page)
 			}
-			// Ignore empty # and #! JavaScript URLs
-			if frag == "" || strings.HasPrefix(frag, "!") {
+			// Ignore empty # and URLs that look like JS apps (#!, #/)
+			if frag == "" ||
+				strings.HasPrefix(frag, "!") ||
+				strings.HasPrefix(frag, "/") {
 				continue
 			}
 			if target, ok := cp[link]; ok && target.ids[frag] {
