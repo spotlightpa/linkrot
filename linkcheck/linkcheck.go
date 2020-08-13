@@ -57,9 +57,9 @@ func CLI(args []string) error {
 	fl.Usage = func() {
 		const usage = `Usage of linkrot:
 
-linkcheck [options] <url>
+linkrot [options] <url>
 
-    linkcheck takes a root URL and recurses down through the links it finds
+    linkrot takes a root URL and recurses down through the links it finds
     in the HTML pages, checking for broken links (HTTP status != 200).
 
     Options may also be specified as env vars prefixed with "LINKROT_".

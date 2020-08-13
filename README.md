@@ -11,17 +11,21 @@ Usage
 $ linkrot -h
 Usage of linkrot:
 
-linkcheck [options] <url>
+linkrot [options] <url>
 
-    linkcheck takes a root URL and recurses down through the links it finds
+    linkrot takes a root URL and recurses down through the links it finds
     in the HTML pages, checking for broken links (HTTP status != 200).
+
+    Options may also be specified as env vars prefixed with "LINKROT_".
 
 Options:
 
   -crawlers int
-        number of concurrent crawlers (default 4)
-  -exclude string
-        comma separated list of URL prefixes to ignore
+        number of concurrent crawlers (default 8)
+  -exclude value
+        URL prefix to ignore; can repeat to exclude multiple URLs
+  -redis-url URL
+        URL connection string for Redis
   -slack-hook-url string
         send errors to Slack webhook URL
   -verbose
