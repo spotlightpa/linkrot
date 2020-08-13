@@ -49,9 +49,7 @@ func TestRun(t *testing.T) {
 				excludePaths,
 				log.New(ioutil.Discard, "linkrot", log.LstdFlags),
 				http.DefaultClient,
-				nil,
 				chromeUserAgent,
-				nil,
 			}
 
 			pages, _ := c.crawl()
