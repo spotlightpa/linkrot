@@ -24,10 +24,10 @@ Options:
         number of concurrent crawlers (default 8)
   -exclude value
         URL prefix to ignore; can repeat to exclude multiple URLs
-  -redis-url URL
-        URL connection string for Redis
-  -slack-hook-url string
-        send errors to Slack webhook URL
+  -sentry-dsn pseudo-URL
+        Sentry DSN pseudo-URL
+  -timeout duration
+        timeout for requesting a URL (default 10s)
   -verbose
         verbose
 

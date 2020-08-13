@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
-	"time"
-
-	"github.com/carlmjohnson/slackhook"
 )
 
 type queue struct {
@@ -142,44 +139,6 @@ type pageError struct {
 }
 
 type urlErrors map[string]*pageError
-
-func (ue urlErrors) toMessage(base string) slackhook.Message {
-	if len(ue) < 1 {
-		return slackhook.Message{
-			Text: fmt.Sprintf("No problems with links on %s", base),
-		}
-	}
-
-	ts := time.Now().Unix()
-	atts := make([]slackhook.Attachment, 0, len(ue))
-	for page, pe := range ue {
-		linkedFrom := strings.Join(pe.refs, ", ")
-		fields := []slackhook.Field{
-			{
-				Title: "Linked from",
-				Value: linkedFrom,
-			},
-		}
-		if pe.err == ErrMissingFragment {
-			fields = append(fields, slackhook.Field{
-				Title: "Missing ID",
-				Value: strings.Join(setToSlice(pe.missingFragments), ", "),
-			})
-		}
-		atts = append(atts, slackhook.Attachment{
-			Color:     "#f70",
-			Title:     page,
-			Text:      pe.err.Error(),
-			Fallback:  fmt.Sprintf("%s: %v", page, pe.err),
-			TimeStamp: ts,
-			Fields:    fields,
-		})
-	}
-	return slackhook.Message{
-		Text:        fmt.Sprintf("Problem with links on %s", base),
-		Attachments: atts,
-	}
-}
 
 func (ue urlErrors) String() string {
 	var buf bytes.Buffer
