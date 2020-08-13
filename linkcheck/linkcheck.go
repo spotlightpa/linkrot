@@ -290,6 +290,9 @@ func (c *crawler) doFetch(pageurl string) (links, ids []string, err error) {
 		return nil, nil, err
 	}
 
+	// If we've been 30X redirected, pageurl will not be response URL
+	pageurl = res.Request.URL.String()
+
 	shouldGetLinks := c.shouldGetLinks(pageurl)
 	// must be a good URL coz I fetched it
 	u, _ := url.Parse(pageurl)
