@@ -224,6 +224,15 @@ func (c *crawler) fetch(url string) fetchResult {
 }
 
 func (c *crawler) doFetch(pageurl string) (links, ids []string, err error) {
+	return c.tryFetch(pageurl, 0)
+}
+
+func (c *crawler) tryFetch(pageurl string, try int) (links, ids []string, err error) {
+	const (
+		maxTries = 3
+		tryDelay = 500 * time.Millisecond
+	)
+	try++
 	req, err := http.NewRequest(http.MethodGet, pageurl, nil)
 	if err != nil {
 		return nil, nil, err
@@ -231,6 +240,11 @@ func (c *crawler) doFetch(pageurl string) (links, ids []string, err error) {
 	req.Header.Set("User-Agent", c.userAgent)
 	res, err := c.Client.Do(req)
 	if err != nil {
+		var temp interface{ Temporary() bool }
+		if try < maxTries && errors.As(err, &temp) && temp.Temporary() {
+			time.Sleep(tryDelay)
+			return c.tryFetch(pageurl, try)
+		}
 		return nil, nil, err
 	}
 
