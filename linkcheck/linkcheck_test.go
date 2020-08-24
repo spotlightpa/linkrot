@@ -33,7 +33,7 @@ func TestRun(t *testing.T) {
 		{"more crawlers success", ts.URL + "/basic-a.html", 5, 0, ""},
 		{"circular success", ts.URL + "/circular-a.html", 1, 0, ""},
 		{"good external link", ts.URL + "/external-good.html", 1, 0, ""},
-		{"bad external link", ts.URL + "/external-bad.html", 1, 1, "https://example.com/404\": unexpected status: 404 Not Found"},
+		{"bad external link", ts.URL + "/external-bad.html", 1, 1, "https://example.com/404\": bad status: 404 Not Found"},
 		{"good ID link", ts.URL + "/id-good-a.html", 1, 0, ""},
 		{"bad ID link", ts.URL + "/id-bad-a.html", 1, 1, "missing fragment"},
 		{"ignore ID link", ts.URL + "/id-ignore-a.html", 1, 0, ""},

@@ -17,6 +17,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -240,20 +241,19 @@ func (c *crawler) tryFetch(pageurl string, try int) (links, ids []string, err er
 	req.Header.Set("User-Agent", c.userAgent)
 	res, err := c.Client.Do(req)
 	if err != nil {
-		var temp interface{ Temporary() bool }
-		if try < maxTries && errors.As(err, &temp) && temp.Temporary() {
-			time.Sleep(tryDelay)
-			return c.tryFetch(pageurl, try)
+		// Report DNS errors
+		if d := new(net.DNSError); errors.As(err, &d) {
+			return nil, nil, err
 		}
-		return nil, nil, err
+		// Ignore connection errors
+		return nil, nil, nil
 	}
 
 	defer res.Body.Close()
 
-	if err = statusCheck(res,
-		http.StatusOK,
-		// Accepting this because it usually means we hit a paywall
-		http.StatusForbidden,
+	if err = statusReject(res,
+		http.StatusNotFound,
+		http.StatusGone,
 	); err != nil {
 		return nil, nil, err
 	}
@@ -263,7 +263,7 @@ func (c *crawler) tryFetch(pageurl string, try int) (links, ids []string, err er
 	peek, err := buf.Peek(512)
 	if err != nil && err != io.EOF {
 		c.Printf("Error initially reading %s body: %v", pageurl, err)
-		return nil, nil, err
+		return nil, nil, nil
 	}
 
 	if ct := http.DetectContentType(peek); !strings.HasPrefix(ct, "text/html") && !strings.HasPrefix(ct, "text/xml") {
@@ -274,7 +274,7 @@ func (c *crawler) tryFetch(pageurl string, try int) (links, ids []string, err er
 	slurp, err := ioutil.ReadAll(buf)
 	if err != nil {
 		c.Printf("Error reading %s body: %v", pageurl, err)
-		return nil, nil, err
+		return nil, nil, nil
 	}
 
 	// If we've been 30X redirected, pageurl will not be response URL
