@@ -47,3 +47,13 @@ func statusCheck(resp *http.Response, acceptStatuses ...int) error {
 
 	return fmt.Errorf("unexpected status: %s", resp.Status)
 }
+
+func statusReject(resp *http.Response, rejectStatuses ...int) error {
+	for _, code := range rejectStatuses {
+		if resp.StatusCode == code {
+			return fmt.Errorf("bad status: %s", resp.Status)
+		}
+	}
+
+	return nil
+}
