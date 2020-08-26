@@ -1,9 +1,9 @@
 module github.com/spotlightpa/linkrot
 
-// +heroku goVersion go1.13
+// +heroku goVersion go1.15
 // +heroku install ./...
 
-go 1.13
+go 1.15
 
 require (
 	github.com/carlmjohnson/exitcode v0.0.3
