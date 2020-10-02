@@ -6,6 +6,7 @@ module github.com/spotlightpa/linkrot
 go 1.15
 
 require (
+	github.com/carlmjohnson/errutil v0.20.1
 	github.com/carlmjohnson/exitcode v0.0.3
 	github.com/carlmjohnson/flagext v0.0.11
 	github.com/getsentry/sentry-go v0.7.0

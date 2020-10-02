@@ -71,6 +71,7 @@ Options:
 	var excludePaths []string
 	fl.Var((*flagext.Strings)(&excludePaths), "exclude", "URL prefix to ignore; can repeat to exclude multiple URLs")
 	dsn := fl.String("sentry-dsn", "", "Sentry DSN `pseudo-URL`")
+	shouldArchive := fl.Bool("should-archive", false, "send links to archive.org")
 	if err := ff.Parse(fl, args, ff.WithEnvVarPrefix("LINKROT")); err != nil {
 		return err
 	}
@@ -112,6 +113,7 @@ Options:
 			Timeout: *timeout,
 		},
 		chromeUserAgent,
+		*shouldArchive,
 	}
 
 	c.sentryInit(*dsn)
@@ -125,7 +127,8 @@ type crawler struct {
 	excludePaths []string
 	*log.Logger
 	*http.Client
-	userAgent string
+	userAgent     string
+	shouldArchive bool
 }
 
 func (c *crawler) sentryInit(dsn string) {
@@ -138,8 +141,15 @@ func (c *crawler) run() error {
 	pages, cancelled := c.crawl()
 	errs := pages.toURLErrors(c.base)
 	c.reportToSentry(errs)
-
 	fmt.Println(errs)
+	if c.shouldArchive {
+		fmt.Println("archiving links...")
+		if err := c.archiveAll(pages); err != nil {
+			fmt.Printf("warning: error archiving links %+v\n", err)
+		} else {
+			fmt.Println("done archiving.")
+		}
+	}
 
 	var err error
 	if cancelled {

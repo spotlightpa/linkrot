@@ -50,6 +50,7 @@ func TestRun(t *testing.T) {
 				log.New(ioutil.Discard, "linkrot", log.LstdFlags),
 				http.DefaultClient,
 				chromeUserAgent,
+				false,
 			}
 
 			pages, _ := c.crawl()

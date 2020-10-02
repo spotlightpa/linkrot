@@ -8,6 +8,8 @@ github.com/Shopify/goreferrer v0.0.0-20181106222321-ec9c9a553398/go.mod h1:a1uqR
 github.com/ajg/form v1.5.1/go.mod h1:uL1WgH+h2mgNtvBq0339dVnzXdBETtL2LeUXaIv25UY=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/aymerick/raymond v2.0.3-0.20180322193309-b565731e1464+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=
+github.com/carlmjohnson/errutil v0.20.1 h1:RadCQottxZxH7GnrLBg3ssl6/kEe4K1D81EZ6td8f9I=
+github.com/carlmjohnson/errutil v0.20.1/go.mod h1:t1n46sLob5fpvrJ5706xDg0zOcj2FigYuhAn37qSRec=
 github.com/carlmjohnson/exitcode v0.0.3 h1:TI8znPyuJdilIlLHqotKizJXBCHp5rkGq6YuJVqyxd0=
 github.com/carlmjohnson/exitcode v0.0.3/go.mod h1:xF8lj5nU2WLjbHlSOQS1dCa8WjOP38cihHLRD3/fXMI=
 github.com/carlmjohnson/flagext v0.0.11 h1:k2K/FCzmfdoYsDLZpHw8w/+V2Rt5gRgCXEfR4Y3d2K4=
