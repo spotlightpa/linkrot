@@ -1,16 +1,16 @@
 module github.com/spotlightpa/linkrot
 
-// +heroku goVersion go1.15
+// +heroku goVersion go1.16
 // +heroku install ./...
 
-go 1.15
+go 1.16
 
 require (
 	github.com/carlmjohnson/errutil v0.20.1
-	github.com/carlmjohnson/exitcode v0.0.3
-	github.com/carlmjohnson/flagext v0.0.11
-	github.com/getsentry/sentry-go v0.7.0
+	github.com/carlmjohnson/exitcode v0.20.2
+	github.com/carlmjohnson/flagext v0.21.0
+	github.com/getsentry/sentry-go v0.10.0
 	github.com/gomodule/redigo v2.0.0+incompatible
-	github.com/peterbourgon/ff v1.6.0
-	golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271
+	github.com/peterbourgon/ff/v3 v3.0.0
+	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4
 )

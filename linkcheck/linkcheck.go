@@ -31,7 +31,7 @@ import (
 	"github.com/carlmjohnson/exitcode"
 	"github.com/carlmjohnson/flagext"
 	sentry "github.com/getsentry/sentry-go"
-	"github.com/peterbourgon/ff"
+	"github.com/peterbourgon/ff/v3"
 	"golang.org/x/net/publicsuffix"
 )
 
