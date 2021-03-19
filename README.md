@@ -7,9 +7,9 @@ HTML pages, checking for broken links.
 Usage
 -----
 
-``` shell
+```
 $ linkrot -h
-Usage of linkrot:
+Usage of linkrot (v0.21.0):
 
 linkrot [options] <url>
 
@@ -22,10 +22,12 @@ Options:
 
   -crawlers int
         number of concurrent crawlers (default 8)
-  -exclude value
+  -exclude URL prefix
         URL prefix to ignore; can repeat to exclude multiple URLs
   -sentry-dsn pseudo-URL
         Sentry DSN pseudo-URL
+  -should-archive
+        send links to archive.org
   -timeout duration
         timeout for requesting a URL (default 10s)
   -verbose
@@ -43,6 +45,6 @@ Installation
 
 Requires [Go](https://golang.org/) to be installed.
 
-``` shell
-$ go get github.com/spotlightpa/linkrot
+```
+$ go install github.com/spotlightpa/linkrot@latest
 ```

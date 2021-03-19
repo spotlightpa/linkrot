@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -49,7 +50,7 @@ const (
 func CLI(args []string) error {
 	fl := flag.NewFlagSet("linkrot", flag.ContinueOnError)
 	fl.Usage = func() {
-		const usage = `Usage of linkrot:
+		const usage = `Usage of linkrot %s:
 
 linkrot [options] <url>
 
@@ -59,8 +60,9 @@ linkrot [options] <url>
     Options may also be specified as env vars prefixed with "LINKROT_".
 
 Options:
+
 `
-		fmt.Fprintln(os.Stderr, usage)
+		fmt.Fprintf(os.Stderr, usage, getVersion())
 		fl.PrintDefaults()
 	}
 
@@ -124,6 +126,14 @@ Options:
 	c.sentryInit(*dsn)
 
 	return c.run()
+}
+
+func getVersion() string {
+	i, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "(unknown)"
+	}
+	return i.Main.Version
 }
 
 type crawler struct {
