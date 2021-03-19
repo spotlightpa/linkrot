@@ -2,7 +2,8 @@ linkrot
 =========
 
 Linkrot takes a root URL and recurses down through the links it finds in the
-HTML pages, checking for broken links.
+HTML pages, checking for broken links. Optionally, it can report broken links 
+to Sentry.
 
 Usage
 -----
