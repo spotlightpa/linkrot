@@ -11,6 +11,5 @@ require (
 	github.com/carlmjohnson/flagext v0.21.0
 	github.com/getsentry/sentry-go v0.10.0
 	github.com/gomodule/redigo v2.0.0+incompatible
-	github.com/peterbourgon/ff/v3 v3.0.0
 	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4
 )

@@ -31,7 +31,6 @@ import (
 	"github.com/carlmjohnson/exitcode"
 	"github.com/carlmjohnson/flagext"
 	sentry "github.com/getsentry/sentry-go"
-	"github.com/peterbourgon/ff/v3"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -69,10 +68,16 @@ Options:
 	crawlers := fl.Int("crawlers", runtime.NumCPU(), "number of concurrent crawlers")
 	timeout := fl.Duration("timeout", 10*time.Second, "timeout for requesting a URL")
 	var excludePaths []string
-	fl.Var((*flagext.Strings)(&excludePaths), "exclude", "URL prefix to ignore; can repeat to exclude multiple URLs")
+	fl.Func("exclude", "`URL prefix` to ignore; can repeat to exclude multiple URLs", func(s string) error {
+		excludePaths = append(excludePaths, strings.Split(s, ",")...)
+		return nil
+	})
 	dsn := fl.String("sentry-dsn", "", "Sentry DSN `pseudo-URL`")
 	shouldArchive := fl.Bool("should-archive", false, "send links to archive.org")
-	if err := ff.Parse(fl, args, ff.WithEnvVarPrefix("LINKROT")); err != nil {
+	if err := fl.Parse(args); err != nil {
+		return err
+	}
+	if err := flagext.ParseEnv(fl, "linkrot"); err != nil {
 		return err
 	}
 
