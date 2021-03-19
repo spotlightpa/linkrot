@@ -254,11 +254,6 @@ func (c *crawler) doFetch(pageurl string) (links, ids []string, err error) {
 }
 
 func (c *crawler) tryFetch(pageurl string, try int) (links, ids []string, err error) {
-	const (
-		maxTries = 3
-		tryDelay = 500 * time.Millisecond
-	)
-	try++
 	req, err := http.NewRequest(http.MethodGet, pageurl, nil)
 	if err != nil {
 		return nil, nil, err

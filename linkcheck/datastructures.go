@@ -7,9 +7,8 @@ import (
 )
 
 type queue struct {
-	base string
-	q    []string
-	m    map[string]bool
+	q []string
+	m map[string]bool
 }
 
 func newQueue(url string) *queue {

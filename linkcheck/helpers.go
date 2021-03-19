@@ -38,16 +38,6 @@ func setToSlice(set map[string]bool) []string {
 	return ss
 }
 
-func statusCheck(resp *http.Response, acceptStatuses ...int) error {
-	for _, code := range acceptStatuses {
-		if resp.StatusCode == code {
-			return nil
-		}
-	}
-
-	return fmt.Errorf("unexpected status: %s", resp.Status)
-}
-
 func statusReject(resp *http.Response, rejectStatuses ...int) error {
 	for _, code := range rejectStatuses {
 		if resp.StatusCode == code {
