@@ -10,6 +10,5 @@ require (
 	github.com/carlmjohnson/exitcode v0.20.2
 	github.com/carlmjohnson/flagext v0.21.0
 	github.com/getsentry/sentry-go v0.10.0
-	github.com/gomodule/redigo v1.8.4
 	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4
 )
