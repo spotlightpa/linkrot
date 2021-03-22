@@ -11,6 +11,7 @@ package linkcheck
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -25,7 +26,6 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/carlmjohnson/exitcode"
@@ -177,6 +177,9 @@ func (c *crawler) run() error {
 
 func (c *crawler) crawl() (crawled crawledPages, cancelled bool) {
 	c.Printf("starting %d crawlers", c.workers)
+	// subscribe to SIGINT signals, so that we still output on early exit
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 
 	var (
 		workerqueue  = make(chan string)
@@ -186,7 +189,7 @@ func (c *crawler) crawl() (crawled crawledPages, cancelled bool) {
 	for i := 0; i < c.workers; i++ {
 		go func() {
 			for url := range workerqueue {
-				fetchResults <- c.fetch(url)
+				fetchResults <- c.fetch(ctx, url)
 			}
 		}()
 	}
@@ -199,10 +202,6 @@ func (c *crawler) crawl() (crawled crawledPages, cancelled bool) {
 	)
 	// database of what we've collected
 	crawled = newCrawledPages()
-
-	// subscribe to SIGINT signals, so that we still output on early exit
-	stopChan := make(chan os.Signal, 1)
-	signal.Notify(stopChan, syscall.SIGINT)
 
 	for (openFetchs > 0 || !q.empty()) && !cancelled {
 		loopqueue := workerqueue
@@ -226,7 +225,8 @@ func (c *crawler) crawl() (crawled crawledPages, cancelled bool) {
 				crawled.addLinksToQueue(result.url, q)
 			}
 
-		case <-stopChan:
+		case <-ctx.Done():
+			// BUG: should drain open calls to prevent leak
 			cancelled = true
 		}
 	}
@@ -237,9 +237,9 @@ func (c *crawler) crawl() (crawled crawledPages, cancelled bool) {
 	return crawled, cancelled
 }
 
-func (c *crawler) fetch(url string) fetchResult {
+func (c *crawler) fetch(ctx context.Context, url string) fetchResult {
 	c.Printf("start fetching %q", url)
-	links, ids, err := c.doFetch(url)
+	links, ids, err := c.doFetch(ctx, url)
 	if err == nil {
 		c.Printf("done fetching %q", url)
 	} else {
@@ -248,8 +248,8 @@ func (c *crawler) fetch(url string) fetchResult {
 	return fetchResult{url, links, ids, err}
 }
 
-func (c *crawler) doFetch(pageurl string) (links, ids []string, err error) {
-	req, err := http.NewRequest(http.MethodGet, pageurl, nil)
+func (c *crawler) doFetch(ctx context.Context, pageurl string) (links, ids []string, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageurl, nil)
 	if err != nil {
 		return nil, nil, err
 	}
