@@ -15,7 +15,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -103,7 +102,7 @@ Options:
 		return fmt.Errorf("bad crawler count: %d", *crawlers)
 	}
 
-	logger := log.New(ioutil.Discard, "linkrot ", log.LstdFlags)
+	logger := log.New(io.Discard, "linkrot ", log.LstdFlags)
 	if *verbose {
 		logger = log.New(os.Stderr, "linkrot ", log.LstdFlags)
 	}
@@ -250,10 +249,6 @@ func (c *crawler) fetch(url string) fetchResult {
 }
 
 func (c *crawler) doFetch(pageurl string) (links, ids []string, err error) {
-	return c.tryFetch(pageurl, 0)
-}
-
-func (c *crawler) tryFetch(pageurl string, try int) (links, ids []string, err error) {
 	req, err := http.NewRequest(http.MethodGet, pageurl, nil)
 	if err != nil {
 		return nil, nil, err
@@ -291,7 +286,7 @@ func (c *crawler) tryFetch(pageurl string, try int) (links, ids []string, err er
 		return nil, nil, nil
 	}
 
-	slurp, err := ioutil.ReadAll(buf)
+	slurp, err := io.ReadAll(buf)
 	if err != nil {
 		c.Printf("Error reading %s body: %v", pageurl, err)
 		return nil, nil, nil
