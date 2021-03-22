@@ -3,7 +3,6 @@ package linkcheck
 import (
 	"bytes"
 	"net/url"
-	"strings"
 
 	"golang.org/x/net/html"
 )
@@ -49,8 +48,16 @@ func isAnchor(n *html.Node) bool {
 func getIDs(n *html.Node) []string {
 	var ids []string
 	for _, attr := range n.Attr {
-		if attr.Key == "id" && !strings.HasPrefix(attr.Val, "!") {
+		if attr.Key == "id" {
 			ids = append(ids, attr.Val)
+		}
+	}
+	// collect old fashioned <a name=""> anchors
+	if isAnchor(n) {
+		for _, attr := range n.Attr {
+			if attr.Key == "name" {
+				ids = append(ids, attr.Val)
+			}
 		}
 	}
 	return ids
