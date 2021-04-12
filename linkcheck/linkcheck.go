@@ -286,12 +286,6 @@ func (c *crawler) doFetch(ctx context.Context, pageurl string) (links, ids []str
 		return nil, nil, nil
 	}
 
-	slurp, err := io.ReadAll(buf)
-	if err != nil {
-		c.Printf("Error reading %s body: %v", pageurl, err)
-		return nil, nil, nil
-	}
-
 	// If we've been 30X redirected, pageurl will not be response URL
 	pageurl = res.Request.URL.String()
 
@@ -299,7 +293,7 @@ func (c *crawler) doFetch(ctx context.Context, pageurl string) (links, ids []str
 	// must be a good URL coz I fetched it
 	u, _ := url.Parse(pageurl)
 	var allLinks []string
-	ids, allLinks, err = getIDsAndLinks(u, slurp, shouldGetLinks)
+	ids, allLinks, err = getIDsAndLinks(u, buf, shouldGetLinks)
 	if err != nil {
 		c.Printf("error parsing HTML: %v", err)
 		// TODO: Should we return the error here?
