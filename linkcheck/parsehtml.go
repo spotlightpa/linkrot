@@ -1,14 +1,14 @@
 package linkcheck
 
 import (
-	"bytes"
+	"io"
 	"net/url"
 
 	"golang.org/x/net/html"
 )
 
-func getIDsAndLinks(pageurl *url.URL, body []byte, getLinks bool) (ids, links []string, err error) {
-	doc, err := html.Parse(bytes.NewReader(body))
+func getIDsAndLinks(pageurl *url.URL, r io.Reader, getLinks bool) (ids, links []string, err error) {
+	doc, err := html.Parse(r)
 	if err != nil {
 		return nil, nil, err
 	}
