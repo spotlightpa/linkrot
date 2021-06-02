@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 func getIDsAndLinks(pageurl *url.URL, r io.Reader, getLinks bool) (ids, links []string, err error) {
@@ -42,7 +43,7 @@ func linkFromAHref(pageurl *url.URL, n *html.Node) (link string) {
 }
 
 func isAnchor(n *html.Node) bool {
-	return n.Type == html.ElementNode && n.Data == "a"
+	return n.Type == html.ElementNode && n.DataAtom == atom.A
 }
 
 func getIDs(n *html.Node) []string {
