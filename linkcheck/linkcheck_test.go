@@ -1,7 +1,7 @@
 package linkcheck
 
 import (
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +11,7 @@ import (
 
 func TestRun(t *testing.T) {
 	// Silence during test
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 
 	// Special for excluded path test
 	excludePaths := []string{"https://example.com/excluded-path"}
@@ -47,7 +47,7 @@ func TestRun(t *testing.T) {
 				test.base,
 				test.crawlers,
 				excludePaths,
-				log.New(ioutil.Discard, "linkrot", log.LstdFlags),
+				log.New(io.Discard, "linkrot", log.LstdFlags),
 				http.DefaultClient,
 				chromeUserAgent,
 				false,
