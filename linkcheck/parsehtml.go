@@ -1,19 +1,13 @@
 package linkcheck
 
 import (
-	"io"
 	"net/url"
 
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )
 
-func getIDsAndLinks(pageurl *url.URL, r io.Reader, getLinks bool) (ids, links []string, err error) {
-	doc, err := html.Parse(r)
-	if err != nil {
-		return nil, nil, err
-	}
-
+func getIDsAndLinks(pageurl *url.URL, doc *html.Node, getLinks bool) (ids, links []string) {
 	visitAll(doc, func(n *html.Node) {
 		ids = append(ids, getIDs(n)...)
 		if !getLinks {
@@ -24,7 +18,7 @@ func getIDsAndLinks(pageurl *url.URL, r io.Reader, getLinks bool) (ids, links []
 		}
 	})
 
-	return ids, links, nil
+	return ids, links
 }
 
 func visitAll(n *html.Node, callback func(*html.Node)) {

@@ -10,7 +10,6 @@
 package linkcheck
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -19,7 +18,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"os/signal"
@@ -30,8 +28,9 @@ import (
 
 	"github.com/carlmjohnson/exitcode"
 	"github.com/carlmjohnson/flagext"
+	"github.com/carlmjohnson/requests"
 	sentry "github.com/getsentry/sentry-go"
-	"golang.org/x/net/publicsuffix"
+	"golang.org/x/net/html"
 )
 
 // Errors native to linkcheck
@@ -107,17 +106,16 @@ Options:
 		logger = log.New(os.Stderr, "linkrot ", log.LstdFlags)
 	}
 
-	// As of Go 1.13, cookiejar.New always returns nil error
-	jar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	cl := &http.Client{
+		Timeout: *timeout,
+	}
+	requests.AddCookieJar(cl)
 	c := &crawler{
 		base.String(),
 		*crawlers,
 		excludePaths,
 		logger,
-		&http.Client{
-			Jar:     jar,
-			Timeout: *timeout,
-		},
+		cl,
 		chromeUserAgent,
 		*shouldArchive,
 	}
@@ -249,56 +247,48 @@ func (c *crawler) fetch(ctx context.Context, url string) fetchResult {
 }
 
 func (c *crawler) doFetch(ctx context.Context, pageurl string) (links, ids []string, err error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageurl, nil)
+	var doc html.Node
+	err = requests.
+		URL(pageurl).
+		Accept("text/html,application/xhtml+xml,application/xml,*/*").
+		UserAgent(c.userAgent).
+		Client(c.Client).
+		// Keep the status checks
+		AddValidator(requests.DefaultValidator).
+		Peek(512, func(b []byte) error {
+			if ct := http.DetectContentType(b); !strings.HasPrefix(ct, "text/html") && !strings.HasPrefix(ct, "text/xml") {
+				return fmt.Errorf("content-type is %s", ct)
+			}
+			return nil
+		}).
+		AddValidator(func(res *http.Response) error {
+			// If we've been 30X redirected, pageurl will not be response URL
+			pageurl = res.Request.URL.String()
+			return nil
+		}).
+		ToHTML(&doc).
+		Fetch(ctx)
+
 	if err != nil {
-		return nil, nil, err
-	}
-	req.Header.Set("User-Agent", c.userAgent)
-	res, err := c.Client.Do(req)
-	if err != nil {
+		// report 404, 410; ignore temporary status errors
+		if requests.HasStatusErr(err,
+			http.StatusNotFound, http.StatusGone) {
+			return nil, nil, err
+		}
 		// Report DNS errors
 		if d := new(net.DNSError); errors.As(err, &d) {
 			return nil, nil, err
 		}
-		// Ignore connection errors
+		// Ignore other errors
+		c.Printf("ignoring error from %s: %v", pageurl, err)
 		return nil, nil, nil
 	}
-
-	defer res.Body.Close()
-
-	if err = statusReject(res,
-		http.StatusNotFound,
-		http.StatusGone,
-	); err != nil {
-		return nil, nil, err
-	}
-
-	buf := bufio.NewReader(res.Body)
-	// http.DetectContentType only uses first 512 bytes
-	peek, err := buf.Peek(512)
-	if err != nil && err != io.EOF {
-		c.Printf("Error initially reading %s body: %v", pageurl, err)
-		return nil, nil, nil
-	}
-
-	if ct := http.DetectContentType(peek); !strings.HasPrefix(ct, "text/html") && !strings.HasPrefix(ct, "text/xml") {
-		c.Printf("Skipping %s, content-type %s", pageurl, ct)
-		return nil, nil, nil
-	}
-
-	// If we've been 30X redirected, pageurl will not be response URL
-	pageurl = res.Request.URL.String()
 
 	shouldGetLinks := c.shouldGetLinks(pageurl)
 	// must be a good URL coz I fetched it
 	u, _ := url.Parse(pageurl)
 	var allLinks []string
-	ids, allLinks, err = getIDsAndLinks(u, buf, shouldGetLinks)
-	if err != nil {
-		c.Printf("error parsing HTML: %v", err)
-		// TODO: Should we return the error here?
-	}
-
+	ids, allLinks = getIDsAndLinks(u, &doc, shouldGetLinks)
 	if shouldGetLinks {
 		for _, link := range allLinks {
 			c.Printf("url %s links to %s", pageurl, link)
