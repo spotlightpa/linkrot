@@ -9,6 +9,7 @@ require (
 	github.com/carlmjohnson/errutil v0.20.1
 	github.com/carlmjohnson/exitcode v0.20.2
 	github.com/carlmjohnson/flagext v0.21.0
+	github.com/carlmjohnson/requests v0.21.7-0.20210603144904-dc7ee458a6a8
 	github.com/getsentry/sentry-go v0.10.0
-	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4
+	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
 )
