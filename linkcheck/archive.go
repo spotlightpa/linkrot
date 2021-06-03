@@ -1,9 +1,13 @@
 package linkcheck
 
 import (
-	"io/ioutil"
+	"context"
+	"net/http"
+	"os"
+	"os/signal"
 
 	"github.com/carlmjohnson/errutil"
+	"github.com/carlmjohnson/requests"
 )
 
 func (c *crawler) archiveAll(pages crawledPages) error {
@@ -25,10 +29,13 @@ func (c *crawler) archiveAll(pages crawledPages) error {
 	defer close(pagesCh)
 	defer close(errCh)
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
 	for i := 0; i < c.workers; i++ {
 		go func() {
 			for page := range pagesCh {
-				errCh <- c.archive(page)
+				errCh <- c.archive(ctx, page)
 			}
 		}()
 	}
@@ -55,13 +62,11 @@ func (c *crawler) archiveAll(pages crawledPages) error {
 	return errors.Merge()
 }
 
-func (c *crawler) archive(page string) error {
-	u := "https://web.archive.org/save/" + page
-	resp, err := c.Client.Head(u)
-	if err != nil {
-		return err
-	}
-	// Drain connection
-	_, err = ioutil.ReadAll(resp.Body)
-	return err
+func (c *crawler) archive(ctx context.Context, page string) error {
+	return requests.
+		URL("https://web.archive.org").
+		Pathf("/save/%s", page).
+		Method(http.MethodHead).
+		Client(c.Client).
+		Fetch(ctx)
 }
