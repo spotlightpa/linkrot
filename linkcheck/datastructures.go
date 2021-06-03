@@ -1,7 +1,6 @@
 package linkcheck
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
 )
@@ -140,7 +139,7 @@ type pageError struct {
 type urlErrors map[string]*pageError
 
 func (ue urlErrors) String() string {
-	var buf bytes.Buffer
+	var buf strings.Builder
 	for page, pe := range ue {
 		fmt.Fprintf(&buf, "%q: %v\n", page, pe.err)
 		if pe.err == ErrMissingFragment {
