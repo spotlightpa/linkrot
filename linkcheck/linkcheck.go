@@ -253,10 +253,15 @@ func (c *crawler) doFetch(ctx context.Context, pageurl string) (links, ids []str
 		Accept("text/html,application/xhtml+xml,application/xml,*/*").
 		UserAgent(c.userAgent).
 		Client(c.Client).
-		// Keep the status checks
-		AddValidator(requests.DefaultValidator).
+		CheckStatus(http.StatusOK).
+		CheckContentType(
+			"text/html",
+			"application/xhtml+xml",
+			"text/xml",
+			"text/plain",
+		).
 		Peek(512, func(b []byte) error {
-			if ct := http.DetectContentType(b); !strings.HasPrefix(ct, "text/html") && !strings.HasPrefix(ct, "text/xml") {
+			if ct := http.DetectContentType(b); !strings.Contains(ct, "html") {
 				return fmt.Errorf("content-type is %s", ct)
 			}
 			return nil
