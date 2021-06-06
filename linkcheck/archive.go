@@ -8,6 +8,7 @@ import (
 
 	"github.com/carlmjohnson/errutil"
 	"github.com/carlmjohnson/requests"
+	"golang.org/x/time/rate"
 )
 
 func (c *crawler) archiveAll(pages crawledPages) error {
@@ -32,10 +33,17 @@ func (c *crawler) archiveAll(pages crawledPages) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
+	// See https://archive.org/details/toomanyrequests_20191110
+	l := rate.NewLimiter(15.0/60, 15)
+
 	for i := 0; i < c.workers; i++ {
 		go func() {
 			for page := range pagesCh {
-				errCh <- c.archive(ctx, page)
+				err := l.Wait(ctx)
+				if err == nil {
+					err = c.archive(ctx, page)
+				}
+				errCh <- err
 			}
 		}()
 	}

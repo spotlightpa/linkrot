@@ -12,4 +12,5 @@ require (
 	github.com/carlmjohnson/requests v0.21.8
 	github.com/getsentry/sentry-go v0.11.0
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
+	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 )
