@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/carlmjohnson/errutil"
 	"github.com/carlmjohnson/requests"
@@ -29,8 +30,10 @@ func (c *crawler) archiveAll(pages crawledPages) error {
 	defer close(pagesCh)
 	defer close(errCh)
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+	defer stop()
 
 	// See https://archive.org/details/toomanyrequests_20191110
 	l := rate.NewLimiter(15.0/60, 15)
