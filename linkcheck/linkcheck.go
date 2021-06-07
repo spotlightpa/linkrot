@@ -155,11 +155,11 @@ func (c *crawler) run() error {
 	c.reportToSentry(errs)
 	fmt.Println(errs)
 	if c.shouldArchive {
-		fmt.Println("archiving links...")
+		c.Println("archiving links...")
 		if err := c.archiveAll(pages); err != nil {
-			fmt.Printf("warning: error archiving links %+v\n", err)
+			c.Printf("warning: error archiving links %+v\n", err)
 		} else {
-			fmt.Println("done archiving.")
+			c.Println("done archiving.")
 		}
 	}
 

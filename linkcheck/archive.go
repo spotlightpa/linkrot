@@ -2,7 +2,6 @@ package linkcheck
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"os/signal"
 
@@ -64,6 +63,7 @@ func (c *crawler) archiveAll(pages crawledPages) error {
 		case err := <-errCh:
 			inflightRequests--
 			errors.Push(err)
+			c.Printf("%d pages remaining to archive", len(queue)+inflightRequests)
 		}
 	}
 
@@ -74,7 +74,7 @@ func (c *crawler) archive(ctx context.Context, page string) error {
 	return requests.
 		URL("https://web.archive.org").
 		Pathf("/save/%s", page).
-		Method(http.MethodHead).
+		Head().
 		Client(c.Client).
 		Fetch(ctx)
 }
